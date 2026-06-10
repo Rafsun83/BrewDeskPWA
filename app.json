@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "BrewDesk",
+    "slug": "brewdesk",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#2D1B12"
+    },
+    "android": {
+      "package": "com.brewdesk.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#2D1B12"
+      }
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.brewdesk.app"
+    }
+  }
+}
