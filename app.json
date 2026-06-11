@@ -14,6 +14,13 @@
           "icon": "./assets/notification-icon.png",
           "color": "#1b87e6"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "BrewDesk uses your photos to set your profile picture.",
+          "cameraPermission": "BrewDesk uses the camera to take your profile picture."
+        }
       ]
     ],
     "splash": {

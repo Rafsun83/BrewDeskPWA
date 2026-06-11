@@ -8,7 +8,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DB_URL } from './config';
 
 const REQUESTS_KEY = '@brewdesk/requests';
-const NAME_KEY = '@brewdesk/last-name';
+const SESSION_KEY = '@brewdesk/session'; // { employeeId, deviceToken }
+const LOCAL_EMPLOYEES_KEY = '@brewdesk/employees'; // local mode registry
 
 const BASE = (DB_URL || '').replace(/\/+$/, '');
 export const isShared = BASE !== '';
@@ -23,7 +24,12 @@ async function fb(path, options = {}) {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
-  if (!res.ok) throw new Error(`Database error (HTTP ${res.status})`);
+  if (!res.ok) {
+    const err = new Error(`Database error (HTTP ${res.status})`);
+    // 401/403 = Firebase rules are blocking this node, not a network problem
+    if (res.status === 401 || res.status === 403) err.code = 'denied';
+    throw err;
+  }
   return res.json();
 }
 
@@ -58,7 +64,7 @@ export async function getRequests() {
   return list.sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export async function addRequest({ itemId, itemName, emoji, qty, note, requester }) {
+export async function addRequest({ itemId, itemName, emoji, qty, note, requester, requesterId }) {
   const req = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     itemId,
@@ -67,6 +73,7 @@ export async function addRequest({ itemId, itemName, emoji, qty, note, requester
     qty,
     note: note || '',
     requester: requester || 'Guest',
+    requesterId: requesterId || '',
     status: 'pending', // 'pending' | 'served'
     createdAt: Date.now(),
     servedAt: null,
@@ -119,19 +126,158 @@ export async function clearServed() {
   await writeAll(list.filter((r) => r.status !== 'served'));
 }
 
-// remember the last name typed by the user (always per-phone)
-export async function saveLastName(name) {
-  try {
-    await AsyncStorage.setItem(NAME_KEY, name);
-  } catch (e) {}
+// ---- Employee profiles ----
+//
+// Each employee registers once: name + email + employee ID + photo.
+// The profile is stored at /employees/{employeeId} together with a random
+// deviceToken that is also kept in this phone's AsyncStorage. Only the
+// phone holding the matching token "owns" that identity, so nobody can
+// order under someone else's name. New profiles start unapproved and an
+// admin must approve them from the admin panel before ordering.
+
+function makeToken() {
+  return Array.from({ length: 4 }, () => Math.random().toString(36).slice(2, 10)).join('');
 }
 
-export async function getLastName() {
+// Employee IDs become Firebase keys, so only allow safe characters.
+export function isValidEmployeeId(id) {
+  return /^[A-Za-z0-9_-]{2,30}$/.test(id);
+}
+
+async function readLocalEmployees() {
   try {
-    return (await AsyncStorage.getItem(NAME_KEY)) || '';
+    const raw = await AsyncStorage.getItem(LOCAL_EMPLOYEES_KEY);
+    return raw ? JSON.parse(raw) : {};
   } catch (e) {
-    return '';
+    return {};
   }
+}
+
+async function writeLocalEmployees(map) {
+  await AsyncStorage.setItem(LOCAL_EMPLOYEES_KEY, JSON.stringify(map));
+}
+
+async function readSession() {
+  try {
+    const raw = await AsyncStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function fetchEmployee(employeeId) {
+  if (isShared) return fb(`/employees/${employeeId}`);
+  const map = await readLocalEmployees();
+  return map[employeeId] || null;
+}
+
+export async function getEmployees() {
+  const data = isShared ? await fb('/employees') : await readLocalEmployees();
+  return data
+    ? Object.values(data).sort((a, b) => a.createdAt - b.createdAt)
+    : [];
+}
+
+// Claim an employee ID. Throws {code:'taken'} if someone already owns it.
+export async function registerEmployee({ employeeId, name, email, photo }) {
+  const existing = await fetchEmployee(employeeId);
+  if (existing) {
+    const err = new Error('Employee ID already registered');
+    err.code = 'taken';
+    throw err;
+  }
+  const profile = {
+    employeeId,
+    name,
+    email,
+    photo: photo || '',
+    deviceToken: makeToken(),
+    // local mode has no admin watching a shared queue — auto approve
+    approved: !isShared,
+    createdAt: Date.now(),
+  };
+  if (isShared) {
+    await fb(`/employees/${employeeId}`, { method: 'PUT', body: JSON.stringify(profile) });
+  } else {
+    const map = await readLocalEmployees();
+    map[employeeId] = profile;
+    await writeLocalEmployees(map);
+  }
+  await AsyncStorage.setItem(
+    SESSION_KEY,
+    JSON.stringify({ employeeId, deviceToken: profile.deviceToken })
+  );
+  return profile;
+}
+
+// Update name/email/photo of the profile this phone owns.
+export async function updateMyProfile({ name, email, photo }) {
+  const session = await readSession();
+  if (!session) throw new Error('Not registered');
+  const patch = { name, email, photo: photo || '' };
+  if (isShared) {
+    await fb(`/employees/${session.employeeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  } else {
+    const map = await readLocalEmployees();
+    if (map[session.employeeId]) {
+      map[session.employeeId] = { ...map[session.employeeId], ...patch };
+      await writeLocalEmployees(map);
+    }
+  }
+  return getMyProfile();
+}
+
+// The profile registered from this phone, fresh from the database.
+// Returns null (and clears the session) if the profile was removed by an
+// admin or the ID was re-registered from another phone.
+export async function getMyProfile() {
+  const session = await readSession();
+  if (!session) return null;
+  let profile;
+  try {
+    profile = await fetchEmployee(session.employeeId);
+  } catch (e) {
+    // network hiccup — keep the session, caller can retry
+    const err = new Error('offline');
+    err.code = 'offline';
+    throw err;
+  }
+  if (!profile || profile.deviceToken !== session.deviceToken) {
+    await AsyncStorage.removeItem(SESSION_KEY);
+    return null;
+  }
+  return profile;
+}
+
+// ---- Admin actions ----
+
+export async function setEmployeeApproved(employeeId, approved) {
+  if (isShared) {
+    await fb(`/employees/${employeeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ approved }),
+    });
+    return;
+  }
+  const map = await readLocalEmployees();
+  if (map[employeeId]) {
+    map[employeeId].approved = approved;
+    await writeLocalEmployees(map);
+  }
+}
+
+export async function deleteEmployee(employeeId) {
+  if (isShared) {
+    await fb(`/employees/${employeeId}`, { method: 'DELETE' });
+    return;
+  }
+  const map = await readLocalEmployees();
+  delete map[employeeId];
+  await writeLocalEmployees(map);
 }
 
 // helper: "5 min ago"

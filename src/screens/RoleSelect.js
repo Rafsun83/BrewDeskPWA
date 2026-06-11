@@ -8,21 +8,23 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
+import { STAFF_PIN, ADMIN_PIN } from '../config';
 import { colors, radius, shadow } from '../theme';
 
-const STAFF_PIN = '1234'; // change the staff PIN here
-
 export default function RoleSelect({ onPickRole }) {
-  const [pinVisible, setPinVisible] = useState(false);
+  // which PIN-protected role is being entered: null | 'staff' | 'admin'
+  const [pinFor, setPinFor] = useState(null);
   const [pin, setPin] = useState('');
 
-  const tryStaffLogin = () => {
-    if (pin === STAFF_PIN) {
+  const tryPinLogin = () => {
+    const expected = pinFor === 'admin' ? ADMIN_PIN : STAFF_PIN;
+    if (pin === expected) {
+      const role = pinFor;
       setPin('');
-      setPinVisible(false);
-      onPickRole('staff');
+      setPinFor(null);
+      onPickRole(role);
     } else {
-      Alert.alert('Wrong PIN', 'Please try again. (Default PIN is 1234)');
+      Alert.alert('Wrong PIN', 'Please try again.');
       setPin('');
     }
   };
@@ -53,7 +55,7 @@ export default function RoleSelect({ onPickRole }) {
       <TouchableOpacity
         style={[styles.card, styles.staffCard, shadow.card]}
         activeOpacity={0.85}
-        onPress={() => setPinVisible(true)}
+        onPress={() => setPinFor('staff')}
       >
         <Text style={styles.cardEmoji}>🧑‍🍳</Text>
         <View style={styles.cardTextWrap}>
@@ -65,12 +67,27 @@ export default function RoleSelect({ onPickRole }) {
         <Text style={[styles.cardArrow, styles.staffText]}>›</Text>
       </TouchableOpacity>
 
-      <Text style={styles.footer}>All data stays on this device</Text>
+      <TouchableOpacity
+        style={[styles.card, styles.adminCard, shadow.card]}
+        activeOpacity={0.85}
+        onPress={() => setPinFor('admin')}
+      >
+        <Text style={styles.cardEmoji}>🛡️</Text>
+        <View style={styles.cardTextWrap}>
+          <Text style={[styles.cardTitle, styles.staffText]}>Admin panel</Text>
+          <Text style={[styles.cardDesc, styles.staffDesc]}>
+            Approve &amp; manage employee profiles
+          </Text>
+        </View>
+        <Text style={[styles.cardArrow, styles.staffText]}>›</Text>
+      </TouchableOpacity>
 
-      <Modal visible={pinVisible} transparent animationType="fade">
+      <Modal visible={pinFor !== null} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, shadow.card]}>
-            <Text style={styles.modalTitle}>Staff PIN</Text>
+            <Text style={styles.modalTitle}>
+              {pinFor === 'admin' ? 'Admin PIN' : 'Staff PIN'}
+            </Text>
             <TextInput
               style={styles.pinInput}
               value={pin}
@@ -87,12 +104,12 @@ export default function RoleSelect({ onPickRole }) {
                 style={styles.modalCancel}
                 onPress={() => {
                   setPin('');
-                  setPinVisible(false);
+                  setPinFor(null);
                 }}
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalOk} onPress={tryStaffLogin}>
+              <TouchableOpacity style={styles.modalOk} onPress={tryPinLogin}>
                 <Text style={styles.modalOkText}>Enter</Text>
               </TouchableOpacity>
             </View>
@@ -136,6 +153,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   staffCard: { backgroundColor: colors.espresso, borderColor: colors.espresso },
+  adminCard: { backgroundColor: colors.bean, borderColor: colors.bean },
   cardEmoji: { fontSize: 34, marginRight: 16 },
   cardTextWrap: { flex: 1 },
   cardTitle: { fontSize: 19, fontWeight: '700', color: colors.espresso },
@@ -143,12 +161,6 @@ const styles = StyleSheet.create({
   staffText: { color: colors.foam },
   staffDesc: { color: '#C9B8A8' },
   cardArrow: { fontSize: 30, color: colors.caramel, fontWeight: '600' },
-  footer: {
-    textAlign: 'center',
-    color: colors.latte,
-    fontSize: 12,
-    marginTop: 24,
-  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(45,27,18,0.5)',

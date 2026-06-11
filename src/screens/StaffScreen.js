@@ -6,9 +6,10 @@ import {
   StyleSheet,
   FlatList,
   RefreshControl,
+  Image,
   Alert,
 } from 'react-native';
-import { getRequests, markServed, clearServed, deleteRequest, timeAgo } from '../db';
+import { getRequests, getEmployees, markServed, clearServed, deleteRequest, timeAgo } from '../db';
 import { initStaffAlerts, alertNewRequests } from '../notify';
 import { colors, radius, shadow } from '../theme';
 
@@ -17,6 +18,9 @@ export default function StaffScreen({ onBack }) {
   const [served, setServed] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [showServed, setShowServed] = useState(false);
+  // employeeId -> photo, to show who is asking. Photos rarely change, so
+  // refresh this map far less often than the order queue.
+  const [photos, setPhotos] = useState({});
   // ids already seen; null until the first load so we don't alert for
   // requests that were already in the queue when the staff panel opened
   const seenIds = useRef(null);
@@ -38,12 +42,30 @@ export default function StaffScreen({ onBack }) {
     if (fresh.length > 0) alertNewRequests(fresh); // 🔔 sound + vibrate
   }, []);
 
+  const loadPhotos = useCallback(async () => {
+    try {
+      const employees = await getEmployees();
+      const map = {};
+      employees.forEach((e) => {
+        if (e.photo) map[e.employeeId] = e.photo;
+      });
+      setPhotos(map);
+    } catch (e) {
+      // offline — keep the photos we already have
+    }
+  }, []);
+
   useEffect(() => {
     initStaffAlerts(); // notification permission + Android sound channel
     load();
+    loadPhotos();
     const t = setInterval(load, 3000); // auto refresh queue
-    return () => clearInterval(t);
-  }, [load]);
+    const tp = setInterval(loadPhotos, 60000);
+    return () => {
+      clearInterval(t);
+      clearInterval(tp);
+    };
+  }, [load, loadPhotos]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -106,9 +128,14 @@ export default function StaffScreen({ onBack }) {
         <Text style={styles.cardTitle}>
           {item.qty} × {item.itemName}
         </Text>
-        <Text style={styles.cardMeta}>
-          {item.requester} · {timeAgo(item.createdAt)}
-        </Text>
+        <View style={styles.metaRow}>
+          {photos[item.requesterId] ? (
+            <Image source={{ uri: photos[item.requesterId] }} style={styles.miniAvatar} />
+          ) : null}
+          <Text style={styles.cardMeta}>
+            {item.requester} · {timeAgo(item.createdAt)}
+          </Text>
+        </View>
         {item.note ? <Text style={styles.cardNote}>“{item.note}”</Text> : null}
       </View>
       <View style={styles.actions}>
@@ -129,9 +156,14 @@ export default function StaffScreen({ onBack }) {
         <Text style={[styles.cardTitle, styles.servedTitle]}>
           {item.qty} × {item.itemName}
         </Text>
-        <Text style={styles.cardMeta}>
-          {item.requester} · served {timeAgo(item.servedAt)}
-        </Text>
+        <View style={styles.metaRow}>
+          {photos[item.requesterId] ? (
+            <Image source={{ uri: photos[item.requesterId] }} style={styles.miniAvatar} />
+          ) : null}
+          <Text style={styles.cardMeta}>
+            {item.requester} · served {timeAgo(item.servedAt)}
+          </Text>
+        </View>
       </View>
       <Text style={styles.servedCheck}>✓</Text>
     </View>
@@ -256,6 +288,8 @@ const styles = StyleSheet.create({
   cardEmoji: { fontSize: 30, marginRight: 12 },
   cardTitle: { fontSize: 16, fontWeight: '800', color: colors.espresso },
   servedTitle: { textDecorationLine: 'line-through', color: colors.latte },
+  metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 3, gap: 6 },
+  miniAvatar: { width: 18, height: 18, borderRadius: 9 },
   cardMeta: { fontSize: 12, color: colors.latte, marginTop: 2 },
   cardNote: { fontSize: 13, color: colors.bean, marginTop: 4, fontStyle: 'italic' },
   actions: { alignItems: 'center', gap: 6 },

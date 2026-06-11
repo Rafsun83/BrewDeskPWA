@@ -3,8 +3,10 @@
 A React Native (Expo) app where users request coffee/snacks and staff see the queue and serve them. With the **shared online database** (free Firebase, see below) every phone sees the **same live queue** — employees order from their own phones and the staff phone sees all of them.
 
 ## Features
-- 🙋 **User side**: pick coffee/tea/snacks from a menu, set quantity, add a note (e.g. "less sugar"), send the request, and watch its status change to "Served ✓".
-- 🧑‍🍳 **Staff panel** (PIN protected, default PIN: **1234**): live pending queue (auto-refreshes every 3 seconds), "Serve" button, delete requests, served history with clear option, pending/served counters.
+- 🪪 **Employee profiles (no name faking)**: each employee registers once with their **name, email, employee ID and a profile photo** (camera or gallery). The employee ID gets **locked to that phone** with a secret device token, so nobody can order under someone else's name. Orders always go out under the registered profile.
+- 🛡️ **Admin panel** (PIN protected, default PIN: **9090**): new registrations start as *"Waiting for admin approval"* and can't order until an admin approves them. Admins can approve, revoke or remove profiles — removing a profile frees the employee ID (e.g. when someone gets a new phone and needs to register again).
+- 🙋 **User side**: pick coffee/tea/snacks from a menu, set quantity, add a note (e.g. "less sugar"), send the request, and watch its status change to "Served ✓". Profile (name, email, photo) can be edited any time — only the employee ID is fixed.
+- 🧑‍🍳 **Staff panel** (PIN protected, default PIN: **1234**): live pending queue (auto-refreshes every 3 seconds) showing **who ordered, with their profile photo**, "Serve" button, delete requests, served history with clear option, pending/served counters.
 - 🔔 **New-request alert**: when a new request lands in the queue, the staff phone **vibrates and plays the notification sound** (a notification banner also shows what was ordered). The first time the staff panel opens, Android asks for notification permission — tap **Allow**. If permission is denied, the phone still vibrates.
 - 🌐 **Shared live queue across all phones** via a free Firebase Realtime Database (5-minute setup, no server to run). Without it, the app falls back to phone-local storage.
 
@@ -17,14 +19,16 @@ BrewDesk/
 ├── eas.json                    # Build config (APK output)
 ├── package.json
 └── src/
-    ├── config.js               # ✏️ Paste your Firebase database URL here
-    ├── db.js                   # Database layer (shared Firebase or local)
+    ├── config.js               # ✏️ Firebase database URL + staff & admin PINs
+    ├── db.js                   # Database layer: requests + employee profiles
     ├── theme.js                # Colors & styles
     ├── data/menu.js            # ✏️ Edit this to change menu items
     └── screens/
-        ├── RoleSelect.js       # Home: choose User or Staff (PIN)
+        ├── RoleSelect.js       # Home: choose User, Staff (PIN) or Admin (PIN)
+        ├── RegisterScreen.js   # User: create / edit profile (photo, email, ID)
         ├── OrderScreen.js      # User: order food
-        └── StaffScreen.js      # Staff: serve requests
+        ├── StaffScreen.js      # Staff: serve requests
+        └── AdminScreen.js      # Admin: approve & manage employee profiles
 ```
 
 ---
@@ -54,11 +58,12 @@ This takes about 5 minutes and is free. **Skip it only if you'll use a single sh
    {
      "rules": {
        "requests": { ".read": true, ".write": true },
+       "employees": { ".read": true, ".write": true },
        "$other": { ".read": false, ".write": false }
      }
    }
    ```
-   then click **Publish**. (This makes the queue writable by anyone who knows your database URL — fine for an office snack list, just don't share the URL publicly.)
+   then click **Publish**. (This makes the data writable by anyone who knows your database URL — fine for an office snack list, just don't share the URL publicly. The `employees` node is where profiles, photos and approvals are stored.)
 
 > Phones now need an internet connection (any Wi-Fi or mobile data — they do **not** need to be on the same network). If `DB_URL` is left empty, the app works like before: data stays on each phone separately.
 
@@ -101,12 +106,20 @@ https://expo.dev/accounts/<your-name>/projects/brewdesk/builds/xxxx
 
 ## Customizing
 - **Shared database URL** → edit `DB_URL` in `src/config.js` (see Step 1)
+- **Staff PIN / Admin PIN** → edit `STAFF_PIN` (default `1234`) and `ADMIN_PIN` (default `9090`) in `src/config.js`
 - **Menu items** → edit `src/data/menu.js`
-- **Staff PIN** → edit `STAFF_PIN` in `src/screens/RoleSelect.js` (default `1234`)
 - **App name / package** → edit `app.json`
 - **Colors** → edit `src/theme.js`
 
+## How employee profiles work
+1. The first time someone opens the user side, they **register**: name, email, employee ID and a photo (taken with the camera or picked from the gallery — automatically resized before upload).
+2. Registering **claims the employee ID** in the database together with a random secret token that only that phone stores. If the ID is already taken, registration is rejected — so one employee can't register or order under another employee's identity.
+3. The profile starts as **"Waiting for admin approval"** — the menu is locked until an admin approves it from the **Admin panel**.
+4. If someone **changes phones**, an admin removes their old profile (Admin panel → Remove). That frees the employee ID so it can be registered again from the new phone.
+5. Profiles (including photos, stored as small base64 images) live under the `employees` node in Firebase; orders carry the registered name + employee ID, and the staff panel shows the requester's photo.
+
+> ⚠️ Honest limitation: with the open database rules above, the protection works **through the app** (which is the realistic concern in an office), but anyone who knows your database URL could still write to it directly with developer tools. For airtight security you'd need Firebase Authentication + stricter rules.
+
 ## How the database works
-- **Shared mode** (`DB_URL` set in `src/config.js`): all requests are stored in your Firebase Realtime Database, so every phone — employees and staff — sees the **same live queue**. Requires internet on each phone.
-- **Local mode** (`DB_URL` empty): data is saved with AsyncStorage on **each phone separately**. Only useful when everyone uses one shared device (e.g. a tablet at the coffee counter).
-- The name typed by the user is always remembered per-phone, in both modes.
+- **Shared mode** (`DB_URL` set in `src/config.js`): all requests and employee profiles are stored in your Firebase Realtime Database, so every phone — employees, staff and admin — sees the **same live data**. Requires internet on each phone.
+- **Local mode** (`DB_URL` empty): data is saved with AsyncStorage on **each phone separately**. Only useful when everyone uses one shared device (e.g. a tablet at the coffee counter). Profiles are auto-approved in this mode, since there's no shared queue for an admin to watch.

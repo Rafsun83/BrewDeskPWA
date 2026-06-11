@@ -7,58 +7,63 @@ import {
   ScrollView,
   TextInput,
   Modal,
+  Image,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { MENU } from '../data/menu';
-import {
-  addRequest,
-  getRequests,
-  getLastName,
-  saveLastName,
-  timeAgo,
-} from '../db';
+import { addRequest, getRequests, getMyProfile, timeAgo } from '../db';
 import { colors, radius, shadow } from '../theme';
 
-export default function OrderScreen({ onBack }) {
-  const [name, setName] = useState('');
+// Ordering screen. `profile` is the registered employee profile that owns
+// this phone — orders always go out under it, so names can't be faked.
+export default function OrderScreen({ profile: initialProfile, onBack, onEditProfile, onProfileGone }) {
+  const [profile, setProfile] = useState(initialProfile);
   const [selected, setSelected] = useState(null); // menu item being ordered
   const [qty, setQty] = useState(1);
   const [note, setNote] = useState('');
   const [myRequests, setMyRequests] = useState([]);
   const [toast, setToast] = useState('');
 
-  const loadMine = useCallback(async (who) => {
+  const loadMine = useCallback(async () => {
     const all = await getRequests();
-    const mine = who
-      ? all.filter((r) => r.requester.toLowerCase() === who.toLowerCase())
-      : [];
+    const mine = all.filter((r) => r.requesterId === initialProfile.employeeId);
     setMyRequests(mine.slice(0, 10));
-  }, []);
+  }, [initialProfile.employeeId]);
 
+  // refresh "my requests" and the profile every few seconds, so served
+  // status and admin approval update live (and we bail out if an admin
+  // removed this profile)
   useEffect(() => {
-    (async () => {
-      const last = await getLastName();
-      setName(last);
-      loadMine(last);
-    })();
-  }, [loadMine]);
-
-  // refresh "my requests" every few seconds so served status updates live
-  useEffect(() => {
-    const t = setInterval(() => loadMine(name), 4000);
+    loadMine();
+    const t = setInterval(async () => {
+      loadMine();
+      try {
+        const fresh = await getMyProfile();
+        if (!fresh) {
+          onProfileGone();
+          return;
+        }
+        setProfile(fresh);
+      } catch (e) {
+        // offline — keep the profile we have
+      }
+    }, 4000);
     return () => clearInterval(t);
-  }, [name, loadMine]);
+  }, [loadMine, onProfileGone]);
 
   const openItem = (item) => {
+    if (!profile.approved) {
+      setToast('Your profile is waiting for admin approval ⏳');
+      setTimeout(() => setToast(''), 3000);
+      return;
+    }
     setSelected(item);
     setQty(1);
     setNote('');
   };
 
   const submit = async () => {
-    const who = name.trim() || 'Guest';
-    await saveLastName(who);
     try {
       await addRequest({
         itemId: selected.id,
@@ -66,7 +71,8 @@ export default function OrderScreen({ onBack }) {
         emoji: selected.emoji,
         qty,
         note: note.trim(),
-        requester: who,
+        requester: profile.name,
+        requesterId: profile.employeeId,
       });
     } catch (e) {
       setToast('Could not send — check your internet connection ❌');
@@ -75,7 +81,7 @@ export default function OrderScreen({ onBack }) {
     }
     setSelected(null);
     setToast(`Request sent: ${qty} × ${selected.name} ✅`);
-    loadMine(who);
+    loadMine();
     setTimeout(() => setToast(''), 2500);
   };
 
@@ -91,15 +97,33 @@ export default function OrderScreen({ onBack }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Name input */}
-        <Text style={styles.label}>Your name</Text>
-        <TextInput
-          style={styles.nameInput}
-          value={name}
-          onChangeText={setName}
-          placeholder="e.g. Rakib"
-          placeholderTextColor={colors.latte}
-        />
+        {/* Profile card */}
+        <View style={[styles.profileCard, shadow.card]}>
+          {profile.photo ? (
+            <Image source={{ uri: profile.photo }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarFallback]}>
+              <Text style={{ fontSize: 22 }}>🙂</Text>
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.profileName}>{profile.name}</Text>
+            <Text style={styles.profileMeta}>{profile.employeeId}</Text>
+          </View>
+          <TouchableOpacity style={styles.editBtn} onPress={onEditProfile}>
+            <Text style={styles.editBtnText}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Waiting for admin approval */}
+        {!profile.approved && (
+          <View style={styles.pendingBanner}>
+            <Text style={styles.pendingTitle}>⏳ Waiting for admin approval</Text>
+            <Text style={styles.pendingText}>
+              An admin needs to approve your profile before you can place orders.
+            </Text>
+          </View>
+        )}
 
         {/* Menu */}
         {MENU.map((section) => (
@@ -109,7 +133,11 @@ export default function OrderScreen({ onBack }) {
               {section.items.map((item) => (
                 <TouchableOpacity
                   key={item.id}
-                  style={[styles.itemCard, shadow.card]}
+                  style={[
+                    styles.itemCard,
+                    shadow.card,
+                    !profile.approved && styles.itemDisabled,
+                  ]}
                   activeOpacity={0.8}
                   onPress={() => openItem(item)}
                 >
@@ -225,17 +253,41 @@ const styles = StyleSheet.create({
   backText: { color: colors.caramel, fontSize: 17, fontWeight: '600' },
   headerTitle: { color: colors.foam, fontSize: 19, fontWeight: '700' },
   scroll: { padding: 16 },
-  label: { color: colors.latte, fontSize: 13, marginBottom: 6, fontWeight: '600' },
-  nameInput: {
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.foam,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.line,
-    borderRadius: radius.md,
-    padding: 14,
-    fontSize: 16,
-    color: colors.espresso,
-    marginBottom: 8,
+    padding: 12,
   },
+  avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 12 },
+  avatarFallback: {
+    backgroundColor: colors.cream,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileName: { fontSize: 16, fontWeight: '800', color: colors.espresso },
+  profileMeta: { fontSize: 12, color: colors.latte, marginTop: 2 },
+  editBtn: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  editBtnText: { color: colors.caramel, fontWeight: '700', fontSize: 13 },
+  pendingBanner: {
+    backgroundColor: '#F6E3D3',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.caramel,
+    padding: 14,
+    marginTop: 12,
+  },
+  pendingTitle: { fontWeight: '800', color: colors.espresso, marginBottom: 4 },
+  pendingText: { color: colors.bean, fontSize: 13, lineHeight: 19 },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '800',
@@ -258,6 +310,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     marginBottom: 12,
   },
+  itemDisabled: { opacity: 0.45 },
   itemEmoji: { fontSize: 32, marginBottom: 6 },
   itemName: { fontSize: 14, fontWeight: '600', color: colors.espresso },
   reqRow: {

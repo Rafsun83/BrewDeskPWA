@@ -11,3 +11,10 @@
 // Leave it as '' (empty) to store data only on this phone (old behavior,
 // no internet needed — but phones won't see each other's orders).
 export const DB_URL = "https://brewdesk-8516b-default-rtdb.firebaseio.com/";
+
+// PIN for the staff panel (serving orders).
+export const STAFF_PIN = '1234';
+
+// PIN for the admin panel (approving & managing employee profiles).
+// Keep this different from the staff PIN and share it only with admins.
+export const ADMIN_PIN = '9090';
