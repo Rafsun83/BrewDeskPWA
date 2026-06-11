@@ -1,5 +1,11 @@
 // BrewDesk theme — espresso & cream coffee-house palette
 export const colors = {
+  // QP brand colors (same as the app icon / splash screen)
+  qpNavy: '#1b3380',     // brand background
+  qpNavyDeep: '#13265F', // darker navy — secondary surfaces on navy
+  qpBlue: '#1b87e6',     // brand accent blue
+  qpMist: '#AEBEE8',     // muted light blue — secondary text on navy
+
   espresso: '#2D1B12',   // deep roasted brown — headers, primary text
   bean: '#4A2F1E',       // medium brown — secondary surfaces
   caramel: '#C98A3D',    // accent — buttons, highlights

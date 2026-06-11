@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,33 +6,38 @@ import {
   StyleSheet,
   Modal,
   TextInput,
+  Image,
   Alert,
-} from 'react-native';
-import { STAFF_PIN, ADMIN_PIN } from '../config';
-import { colors, radius, shadow } from '../theme';
+} from "react-native";
+import { STAFF_PIN, ADMIN_PIN } from "../config";
+import { colors, radius, shadow } from "../theme";
 
 export default function RoleSelect({ onPickRole }) {
   // which PIN-protected role is being entered: null | 'staff' | 'admin'
   const [pinFor, setPinFor] = useState(null);
-  const [pin, setPin] = useState('');
+  const [pin, setPin] = useState("");
 
   const tryPinLogin = () => {
-    const expected = pinFor === 'admin' ? ADMIN_PIN : STAFF_PIN;
+    const expected = pinFor === "admin" ? ADMIN_PIN : STAFF_PIN;
     if (pin === expected) {
       const role = pinFor;
-      setPin('');
+      setPin("");
       setPinFor(null);
       onPickRole(role);
     } else {
-      Alert.alert('Wrong PIN', 'Please try again.');
-      setPin('');
+      Alert.alert("Wrong PIN", "Please try again.");
+      setPin("");
     }
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.logoMark}>☕</Text>
+        <Image
+          source={require("../../assets/splash-icon.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <Text style={styles.title}>BrewDesk</Text>
         <Text style={styles.subtitle}>
           Request coffee &amp; snacks. Staff serves them. Simple.
@@ -42,7 +47,7 @@ export default function RoleSelect({ onPickRole }) {
       <TouchableOpacity
         style={[styles.card, shadow.card]}
         activeOpacity={0.85}
-        onPress={() => onPickRole('user')}
+        onPress={() => onPickRole("user")}
       >
         <Text style={styles.cardEmoji}>🙋</Text>
         <View style={styles.cardTextWrap}>
@@ -55,38 +60,38 @@ export default function RoleSelect({ onPickRole }) {
       <TouchableOpacity
         style={[styles.card, styles.staffCard, shadow.card]}
         activeOpacity={0.85}
-        onPress={() => setPinFor('staff')}
+        onPress={() => setPinFor("staff")}
       >
         <Text style={styles.cardEmoji}>🧑‍🍳</Text>
         <View style={styles.cardTextWrap}>
-          <Text style={[styles.cardTitle, styles.staffText]}>Staff panel</Text>
-          <Text style={[styles.cardDesc, styles.staffDesc]}>
+          <Text style={[styles.cardTitle, styles.onBlueText]}>Staff panel</Text>
+          <Text style={[styles.cardDesc, styles.onBlueDesc]}>
             See requests &amp; serve them
           </Text>
         </View>
-        <Text style={[styles.cardArrow, styles.staffText]}>›</Text>
+        <Text style={[styles.cardArrow, styles.onBlueText]}>›</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.card, styles.adminCard, shadow.card]}
         activeOpacity={0.85}
-        onPress={() => setPinFor('admin')}
+        onPress={() => setPinFor("admin")}
       >
         <Text style={styles.cardEmoji}>🛡️</Text>
         <View style={styles.cardTextWrap}>
-          <Text style={[styles.cardTitle, styles.staffText]}>Admin panel</Text>
-          <Text style={[styles.cardDesc, styles.staffDesc]}>
+          <Text style={[styles.cardTitle, styles.onBlueText]}>Admin panel</Text>
+          <Text style={[styles.cardDesc, styles.onBlueDesc]}>
             Approve &amp; manage employee profiles
           </Text>
         </View>
-        <Text style={[styles.cardArrow, styles.staffText]}>›</Text>
+        <Text style={[styles.cardArrow, styles.onBlueText]}>›</Text>
       </TouchableOpacity>
 
       <Modal visible={pinFor !== null} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, shadow.card]}>
             <Text style={styles.modalTitle}>
-              {pinFor === 'admin' ? 'Admin PIN' : 'Staff PIN'}
+              {pinFor === "admin" ? "Admin PIN" : "Staff PIN"}
             </Text>
             <TextInput
               style={styles.pinInput}
@@ -96,14 +101,14 @@ export default function RoleSelect({ onPickRole }) {
               secureTextEntry
               maxLength={6}
               placeholder="••••"
-              placeholderTextColor={colors.latte}
+              placeholderTextColor={colors.qpMist}
               autoFocus
             />
             <View style={styles.modalRow}>
               <TouchableOpacity
                 style={styles.modalCancel}
                 onPress={() => {
-                  setPin('');
+                  setPin("");
                   setPinFor(null);
                 }}
               >
@@ -123,89 +128,91 @@ export default function RoleSelect({ onPickRole }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: colors.qpNavy,
     padding: 24,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
-  header: { alignItems: 'center', marginBottom: 40 },
-  logoMark: { fontSize: 56, marginBottom: 8 },
+  header: { alignItems: "center", marginBottom: 36 },
+  logo: { width: 150, height: 150, marginBottom: -10 },
   title: {
     fontSize: 36,
-    fontWeight: '800',
-    color: colors.espresso,
+    fontWeight: "800",
+    color: "#FFFFFF",
     letterSpacing: 1,
   },
   subtitle: {
     marginTop: 8,
     fontSize: 15,
-    color: colors.latte,
-    textAlign: 'center',
+    color: colors.qpMist,
+    textAlign: "center",
     lineHeight: 22,
   },
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.foam,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     borderRadius: radius.lg,
     padding: 20,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.line,
   },
-  staffCard: { backgroundColor: colors.espresso, borderColor: colors.espresso },
-  adminCard: { backgroundColor: colors.bean, borderColor: colors.bean },
+  staffCard: { backgroundColor: colors.qpBlue },
+  adminCard: {
+    backgroundColor: colors.qpNavyDeep,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+  },
   cardEmoji: { fontSize: 34, marginRight: 16 },
   cardTextWrap: { flex: 1 },
-  cardTitle: { fontSize: 19, fontWeight: '700', color: colors.espresso },
-  cardDesc: { fontSize: 14, color: colors.latte, marginTop: 2 },
-  staffText: { color: colors.foam },
-  staffDesc: { color: '#C9B8A8' },
-  cardArrow: { fontSize: 30, color: colors.caramel, fontWeight: '600' },
+  cardTitle: { fontSize: 19, fontWeight: "700", color: colors.qpNavy },
+  cardDesc: { fontSize: 14, color: "#5A6B96", marginTop: 2 },
+  onBlueText: { color: "#FFFFFF" },
+  onBlueDesc: { color: "rgba(255,255,255,0.75)" },
+  cardArrow: { fontSize: 30, color: colors.qpBlue, fontWeight: "600" },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(45,27,18,0.5)',
-    justifyContent: 'center',
+    backgroundColor: "rgba(8,17,45,0.6)",
+    justifyContent: "center",
     padding: 32,
   },
   modalCard: {
-    backgroundColor: colors.foam,
+    backgroundColor: "#FFFFFF",
     borderRadius: radius.lg,
     padding: 24,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: colors.espresso,
+    fontWeight: "700",
+    color: colors.qpNavy,
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   pinInput: {
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: "#D6DEF0",
     borderRadius: radius.md,
     padding: 14,
     fontSize: 22,
-    textAlign: 'center',
+    textAlign: "center",
     letterSpacing: 8,
-    color: colors.espresso,
-    backgroundColor: colors.cream,
+    color: colors.qpNavy,
+    backgroundColor: "#F2F5FC",
   },
-  modalRow: { flexDirection: 'row', marginTop: 16, gap: 12 },
+  modalRow: { flexDirection: "row", marginTop: 16, gap: 12 },
   modalCancel: {
     flex: 1,
     padding: 14,
     borderRadius: radius.md,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: "#D6DEF0",
   },
-  modalCancelText: { color: colors.latte, fontWeight: '600' },
+  modalCancelText: { color: "#5A6B96", fontWeight: "600" },
   modalOk: {
     flex: 1,
     padding: 14,
     borderRadius: radius.md,
-    alignItems: 'center',
-    backgroundColor: colors.caramel,
+    alignItems: "center",
+    backgroundColor: colors.qpBlue,
   },
-  modalOkText: { color: colors.foam, fontWeight: '700' },
+  modalOkText: { color: "#FFFFFF", fontWeight: "700" },
 });
