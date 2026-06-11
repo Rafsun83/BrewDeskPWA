@@ -5,6 +5,7 @@ A React Native (Expo) app where users request coffee/snacks and staff see the qu
 ## Features
 - 🙋 **User side**: pick coffee/tea/snacks from a menu, set quantity, add a note (e.g. "less sugar"), send the request, and watch its status change to "Served ✓".
 - 🧑‍🍳 **Staff panel** (PIN protected, default PIN: **1234**): live pending queue (auto-refreshes every 3 seconds), "Serve" button, delete requests, served history with clear option, pending/served counters.
+- 🔔 **New-request alert**: when a new request lands in the queue, the staff phone **vibrates and plays the notification sound** (a notification banner also shows what was ordered). The first time the staff panel opens, Android asks for notification permission — tap **Allow**. If permission is denied, the phone still vibrates.
 - 🌐 **Shared live queue across all phones** via a free Firebase Realtime Database (5-minute setup, no server to run). Without it, the app falls back to phone-local storage.
 
 ## Project structure

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { getRequests, markServed, clearServed, deleteRequest, timeAgo } from '../db';
+import { initStaffAlerts, alertNewRequests } from '../notify';
 import { colors, radius, shadow } from '../theme';
 
 export default function StaffScreen({ onBack }) {
@@ -16,14 +17,29 @@ export default function StaffScreen({ onBack }) {
   const [served, setServed] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [showServed, setShowServed] = useState(false);
+  // ids already seen; null until the first load so we don't alert for
+  // requests that were already in the queue when the staff panel opened
+  const seenIds = useRef(null);
 
   const load = useCallback(async () => {
     const all = await getRequests();
-    setPending(all.filter((r) => r.status === 'pending').sort((a, b) => a.createdAt - b.createdAt));
+    const pendingNow = all
+      .filter((r) => r.status === 'pending')
+      .sort((a, b) => a.createdAt - b.createdAt);
+    setPending(pendingNow);
     setServed(all.filter((r) => r.status === 'served'));
+
+    if (seenIds.current === null) {
+      seenIds.current = new Set(all.map((r) => r.id));
+      return;
+    }
+    const fresh = pendingNow.filter((r) => !seenIds.current.has(r.id));
+    all.forEach((r) => seenIds.current.add(r.id));
+    if (fresh.length > 0) alertNewRequests(fresh); // 🔔 sound + vibrate
   }, []);
 
   useEffect(() => {
+    initStaffAlerts(); // notification permission + Android sound channel
     load();
     const t = setInterval(load, 3000); // auto refresh queue
     return () => clearInterval(t);
