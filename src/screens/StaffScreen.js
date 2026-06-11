@@ -35,8 +35,15 @@ export default function StaffScreen({ onBack }) {
     setRefreshing(false);
   };
 
+  const networkAlert = () =>
+    Alert.alert('Connection problem', 'Could not reach the database. Check your internet and try again.');
+
   const serve = async (id) => {
-    await markServed(id);
+    try {
+      await markServed(id);
+    } catch (e) {
+      networkAlert();
+    }
     load();
   };
 
@@ -47,7 +54,11 @@ export default function StaffScreen({ onBack }) {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          await deleteRequest(id);
+          try {
+            await deleteRequest(id);
+          } catch (e) {
+            networkAlert();
+          }
           load();
         },
       },
@@ -61,7 +72,11 @@ export default function StaffScreen({ onBack }) {
         text: 'Clear',
         style: 'destructive',
         onPress: async () => {
-          await clearServed();
+          try {
+            await clearServed();
+          } catch (e) {
+            networkAlert();
+          }
           load();
         },
       },

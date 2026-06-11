@@ -59,14 +59,20 @@ export default function OrderScreen({ onBack }) {
   const submit = async () => {
     const who = name.trim() || 'Guest';
     await saveLastName(who);
-    await addRequest({
-      itemId: selected.id,
-      itemName: selected.name,
-      emoji: selected.emoji,
-      qty,
-      note: note.trim(),
-      requester: who,
-    });
+    try {
+      await addRequest({
+        itemId: selected.id,
+        itemName: selected.name,
+        emoji: selected.emoji,
+        qty,
+        note: note.trim(),
+        requester: who,
+      });
+    } catch (e) {
+      setToast('Could not send — check your internet connection ❌');
+      setTimeout(() => setToast(''), 3000);
+      return;
+    }
     setSelected(null);
     setToast(`Request sent: ${qty} × ${selected.name} ✅`);
     loadMine(who);
