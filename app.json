@@ -19,6 +19,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.brewdesk.app"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "f2c30ba2-878a-4975-8488-329034466199"
+      }
     }
   }
 }
