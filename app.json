@@ -1,25 +1,40 @@
 {
   "expo": {
-    "name": "BrewDesk",
+    "name": "QP BrewDesk",
     "slug": "brewdesk",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "plugins": ["expo-notifications"],
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#1b87e6"
+        }
+      ]
+    ],
     "splash": {
-      "backgroundColor": "#2D1B12"
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1b3380"
     },
     "android": {
       "package": "com.brewdesk.app",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#2D1B12"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1b3380"
       }
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.brewdesk.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     },
     "extra": {
       "eas": {
