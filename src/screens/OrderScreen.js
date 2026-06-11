@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
   },
   editBtnText: { color: colors.caramel, fontWeight: '700', fontSize: 13 },
   pendingBanner: {
-    backgroundColor: '#F6E3D3',
+    backgroundColor: '#DCEAFB',
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.caramel,
@@ -327,8 +327,8 @@ const styles = StyleSheet.create({
   reqName: { fontSize: 15, fontWeight: '700', color: colors.espresso },
   reqTime: { fontSize: 12, color: colors.latte, marginTop: 2 },
   badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
-  badgePending: { backgroundColor: '#F6E3D3' },
-  badgeServed: { backgroundColor: '#DCEDE2' },
+  badgePending: { backgroundColor: '#DCEAFB' },
+  badgeServed: { backgroundColor: '#D9F0E3' },
   badgeText: { fontSize: 12, fontWeight: '700', color: colors.espresso },
   toast: {
     position: 'absolute',
@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
   toastText: { color: colors.foam, fontWeight: '600' },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(45,27,18,0.5)',
+    backgroundColor: 'rgba(8,17,45,0.6)',
     justifyContent: 'flex-end',
   },
   sheet: {
