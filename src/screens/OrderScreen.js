@@ -12,7 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { MENU } from '../data/menu';
-import { addRequest, getRequests, getMyProfile, timeAgo } from '../db';
+import { addRequest, getRequests, getMyProfile, addCall, getCalls, deleteCall, timeAgo } from '../db';
 import { colors, radius, shadow } from '../theme';
 
 // Ordering screen. `profile` is the registered employee profile that owns
@@ -23,12 +23,21 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
   const [qty, setQty] = useState(1);
   const [note, setNote] = useState('');
   const [myRequests, setMyRequests] = useState([]);
+  const [myCall, setMyCall] = useState(null); // my active staff call, if any
   const [toast, setToast] = useState('');
 
   const loadMine = useCallback(async () => {
     const all = await getRequests();
     const mine = all.filter((r) => r.requesterId === initialProfile.employeeId);
     setMyRequests(mine.slice(0, 10));
+    // getCalls() is newest-first, so find() returns my latest active call
+    const calls = await getCalls();
+    const active = calls.find(
+      (c) =>
+        c.callerId === initialProfile.employeeId &&
+        (c.status === 'pending' || c.status === 'coming')
+    );
+    setMyCall(active || null);
   }, [initialProfile.employeeId]);
 
   // refresh "my requests" and the profile every few seconds, so served
@@ -85,6 +94,37 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
     setTimeout(() => setToast(''), 2500);
   };
 
+  const callStaff = async () => {
+    if (!profile.approved) {
+      setToast('Your profile is waiting for admin approval ⏳');
+      setTimeout(() => setToast(''), 3000);
+      return;
+    }
+    try {
+      await addCall({ callerName: profile.name, callerId: profile.employeeId });
+    } catch (e) {
+      setToast('Could not send — check your internet connection ❌');
+      setTimeout(() => setToast(''), 3000);
+      return;
+    }
+    setToast('Staff has been called 🔔');
+    loadMine();
+    setTimeout(() => setToast(''), 2500);
+  };
+
+  const cancelCall = async () => {
+    if (!myCall) return;
+    try {
+      await deleteCall(myCall.id);
+    } catch (e) {
+      setToast('Could not cancel — check your internet connection ❌');
+      setTimeout(() => setToast(''), 3000);
+      return;
+    }
+    setMyCall(null);
+    loadMine();
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -124,6 +164,47 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
             </Text>
           </View>
         )}
+
+        {/* Call staff */}
+        {profile.approved &&
+          (!myCall ? (
+            <TouchableOpacity
+              style={[styles.callBtn, shadow.card]}
+              activeOpacity={0.85}
+              onPress={callStaff}
+            >
+              <Text style={styles.callEmoji}>🔔</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.callBtnTitle}>Call staff to my desk</Text>
+                <Text style={styles.callBtnSub}>
+                  No order needed — staff gets notified right away
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <View style={[styles.callBanner, shadow.card]}>
+              <Text style={styles.callEmoji}>
+                {myCall.status === 'coming' ? '👋' : '🔔'}
+              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.callBannerTitle}>
+                  {myCall.status === 'coming'
+                    ? 'Staff is on the way!'
+                    : 'Calling staff…'}
+                </Text>
+                <Text style={styles.callBannerSub}>
+                  {myCall.status === 'coming'
+                    ? 'They saw your call and are coming over.'
+                    : `Sent ${timeAgo(myCall.createdAt)} — waiting for a response.`}
+                </Text>
+              </View>
+              {myCall.status === 'pending' && (
+                <TouchableOpacity style={styles.callCancelBtn} onPress={cancelCall}>
+                  <Text style={styles.callCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
 
         {/* Menu */}
         {MENU.map((section) => (
@@ -288,6 +369,37 @@ const styles = StyleSheet.create({
   },
   pendingTitle: { fontWeight: '800', color: colors.espresso, marginBottom: 4 },
   pendingText: { color: colors.bean, fontSize: 13, lineHeight: 19 },
+  callBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.caramel,
+    borderRadius: radius.md,
+    padding: 14,
+    marginTop: 12,
+  },
+  callBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.foam,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.caramel,
+    padding: 14,
+    marginTop: 12,
+  },
+  callEmoji: { fontSize: 28, marginRight: 12 },
+  callBtnTitle: { fontSize: 16, fontWeight: '800', color: colors.foam },
+  callBannerTitle: { fontSize: 16, fontWeight: '800', color: colors.espresso },
+  callBtnSub: { fontSize: 12, color: '#DCEAFB', marginTop: 2 },
+  callBannerSub: { fontSize: 12, color: colors.latte, marginTop: 2 },
+  callCancelBtn: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  callCancelText: { color: colors.berry, fontWeight: '700', fontSize: 13 },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '800',

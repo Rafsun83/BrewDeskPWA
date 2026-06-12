@@ -126,6 +126,82 @@ export async function clearServed() {
   await writeAll(list.filter((r) => r.status !== 'served'));
 }
 
+// ---- Staff calls ----
+//
+// An employee can "call" staff to their desk without ordering anything.
+// Stored at /calls/{id}. status flow: 'pending' (waiting for staff)
+// -> 'coming' (staff tapped "On my way"). When staff arrives they tap
+// "Done", which deletes the call. The employee can cancel while pending.
+
+const CALLS_KEY = '@brewdesk/calls';
+let lastKnownCalls = [];
+
+async function readCalls() {
+  try {
+    const raw = await AsyncStorage.getItem(CALLS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+async function writeCalls(list) {
+  await AsyncStorage.setItem(CALLS_KEY, JSON.stringify(list));
+}
+
+export async function getCalls() {
+  if (isShared) {
+    try {
+      const data = await fb('/calls');
+      lastKnownCalls = data ? Object.values(data) : [];
+    } catch (e) {
+      // network hiccup: keep showing the last list we got
+    }
+    return [...lastKnownCalls].sort((a, b) => b.createdAt - a.createdAt);
+  }
+  const list = await readCalls();
+  return list.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export async function addCall({ callerName, callerId }) {
+  const call = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    callerName: callerName || 'Guest',
+    callerId: callerId || '',
+    status: 'pending', // 'pending' | 'coming'
+    createdAt: Date.now(),
+    comingAt: null,
+  };
+  if (isShared) {
+    await fb(`/calls/${call.id}`, { method: 'PUT', body: JSON.stringify(call) });
+    return call;
+  }
+  const list = await readCalls();
+  list.push(call);
+  await writeCalls(list);
+  return call;
+}
+
+export async function setCallStatus(id, status) {
+  const patch = { status };
+  if (status === 'coming') patch.comingAt = Date.now();
+  if (isShared) {
+    await fb(`/calls/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+    return;
+  }
+  const list = await readCalls();
+  await writeCalls(list.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+}
+
+export async function deleteCall(id) {
+  if (isShared) {
+    await fb(`/calls/${id}`, { method: 'DELETE' });
+    return;
+  }
+  const list = await readCalls();
+  await writeCalls(list.filter((c) => c.id !== id));
+}
+
 // ---- Employee profiles ----
 //
 // Each employee registers once: name + email + employee ID + photo.

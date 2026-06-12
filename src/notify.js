@@ -68,3 +68,29 @@ export async function alertNewRequests(fresh) {
     // Notification failed — the vibration above already alerted the staff.
   }
 }
+
+// Vibrate and post a notification when an employee calls staff to their desk.
+export async function alertNewCalls(fresh) {
+  Vibration.vibrate(VIBRATION_PATTERN);
+  try {
+    const title =
+      fresh.length === 1
+        ? `🔔 ${fresh[0].callerName} is calling you`
+        : `🔔 ${fresh.length} people are calling you`;
+    const body =
+      fresh.length === 1
+        ? 'They need you at their desk — tap "On my way" in the staff panel.'
+        : fresh.map((c) => c.callerName).join(', ');
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        sound: 'default',
+        vibrate: VIBRATION_PATTERN,
+      },
+      trigger: Platform.OS === 'android' ? { channelId: CHANNEL_ID } : null,
+    });
+  } catch (e) {
+    // Notification failed — the vibration above already alerted the staff.
+  }
+}

@@ -9,37 +9,59 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { getRequests, getEmployees, markServed, clearServed, deleteRequest, timeAgo } from '../db';
-import { initStaffAlerts, alertNewRequests } from '../notify';
+import {
+  getRequests,
+  getEmployees,
+  markServed,
+  clearServed,
+  deleteRequest,
+  getCalls,
+  setCallStatus,
+  deleteCall,
+  timeAgo,
+} from '../db';
+import { initStaffAlerts, alertNewRequests, alertNewCalls } from '../notify';
 import { colors, radius, shadow } from '../theme';
 
 export default function StaffScreen({ onBack }) {
   const [pending, setPending] = useState([]);
   const [served, setServed] = useState([]);
+  const [calls, setCalls] = useState([]); // active "call staff" requests
   const [refreshing, setRefreshing] = useState(false);
   const [showServed, setShowServed] = useState(false);
   // employeeId -> photo, to show who is asking. Photos rarely change, so
   // refresh this map far less often than the order queue.
   const [photos, setPhotos] = useState({});
   // ids already seen; null until the first load so we don't alert for
-  // requests that were already in the queue when the staff panel opened
+  // requests/calls that were already there when the staff panel opened
   const seenIds = useRef(null);
+  const seenCallIds = useRef(null);
 
   const load = useCallback(async () => {
-    const all = await getRequests();
+    const [all, allCalls] = await Promise.all([getRequests(), getCalls()]);
     const pendingNow = all
       .filter((r) => r.status === 'pending')
       .sort((a, b) => a.createdAt - b.createdAt);
     setPending(pendingNow);
     setServed(all.filter((r) => r.status === 'served'));
 
+    const activeCalls = allCalls
+      .filter((c) => c.status === 'pending' || c.status === 'coming')
+      .sort((a, b) => a.createdAt - b.createdAt);
+    setCalls(activeCalls);
+
     if (seenIds.current === null) {
       seenIds.current = new Set(all.map((r) => r.id));
+      seenCallIds.current = new Set(allCalls.map((c) => c.id));
       return;
     }
     const fresh = pendingNow.filter((r) => !seenIds.current.has(r.id));
     all.forEach((r) => seenIds.current.add(r.id));
     if (fresh.length > 0) alertNewRequests(fresh); // 🔔 sound + vibrate
+
+    const freshCalls = activeCalls.filter((c) => !seenCallIds.current.has(c.id));
+    allCalls.forEach((c) => seenCallIds.current.add(c.id));
+    if (freshCalls.length > 0) alertNewCalls(freshCalls); // 🔔 someone is calling
   }, []);
 
   const loadPhotos = useCallback(async () => {
@@ -85,6 +107,26 @@ export default function StaffScreen({ onBack }) {
     load();
   };
 
+  // staff tapped "On my way" — the caller's screen flips to "staff is coming"
+  const respondCall = async (id) => {
+    try {
+      await setCallStatus(id, 'coming');
+    } catch (e) {
+      networkAlert();
+    }
+    load();
+  };
+
+  // staff arrived and handled it — remove the call
+  const finishCall = async (id) => {
+    try {
+      await deleteCall(id);
+    } catch (e) {
+      networkAlert();
+    }
+    load();
+  };
+
   const remove = (id) => {
     Alert.alert('Delete request?', 'This will remove it permanently.', [
       { text: 'Cancel', style: 'cancel' },
@@ -120,6 +162,41 @@ export default function StaffScreen({ onBack }) {
       },
     ]);
   };
+
+  // active calls pinned above the pending queue
+  const callsHeader =
+    !showServed && calls.length > 0 ? (
+      <View>
+        {calls.map((c) => (
+          <View key={c.id} style={[styles.card, styles.callCard, shadow.card]}>
+            <Text style={styles.cardEmoji}>🔔</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>{c.callerName} is calling you</Text>
+              <View style={styles.metaRow}>
+                {photos[c.callerId] ? (
+                  <Image source={{ uri: photos[c.callerId] }} style={styles.miniAvatar} />
+                ) : null}
+                <Text style={styles.cardMeta}>
+                  {c.callerId} · {timeAgo(c.createdAt)}
+                </Text>
+              </View>
+              {c.status === 'coming' ? (
+                <Text style={styles.cardNote}>You're on your way 👋</Text>
+              ) : null}
+            </View>
+            {c.status === 'pending' ? (
+              <TouchableOpacity style={styles.comingBtn} onPress={() => respondCall(c.id)}>
+                <Text style={styles.serveText}>On my way 👋</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.serveBtn} onPress={() => finishCall(c.id)}>
+                <Text style={styles.serveText}>Done ✓</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ))}
+      </View>
+    ) : null;
 
   const renderPending = ({ item }) => (
     <View style={[styles.card, shadow.card]}>
@@ -215,15 +292,18 @@ export default function StaffScreen({ onBack }) {
         renderItem={showServed ? renderServed : renderPending}
         contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        ListHeaderComponent={callsHeader}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyEmoji}>{showServed ? '🗒️' : '🎉'}</Text>
-            <Text style={styles.emptyText}>
-              {showServed
-                ? 'No served items yet.'
-                : 'No pending requests. All caught up!'}
-            </Text>
-          </View>
+          !showServed && calls.length > 0 ? null : (
+            <View style={styles.empty}>
+              <Text style={styles.emptyEmoji}>{showServed ? '🗒️' : '🎉'}</Text>
+              <Text style={styles.emptyText}>
+                {showServed
+                  ? 'No served items yet.'
+                  : 'No pending requests. All caught up!'}
+              </Text>
+            </View>
+          )
         }
       />
 
@@ -285,6 +365,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   servedCard: { opacity: 0.85 },
+  callCard: { borderColor: colors.caramel, borderWidth: 1.5, backgroundColor: '#EAF3FD' },
+  comingBtn: {
+    backgroundColor: colors.caramel,
+    borderRadius: radius.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
   cardEmoji: { fontSize: 30, marginRight: 12 },
   cardTitle: { fontSize: 16, fontWeight: '800', color: colors.espresso },
   servedTitle: { textDecorationLine: 'line-through', color: colors.latte },
