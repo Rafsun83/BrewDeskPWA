@@ -10,6 +10,9 @@ export const MENU = [
       { id: 'milk-tea', name: 'Milk Tea (Cha)', emoji: '🍵' },
       { id: 'green-tea', name: 'Green Tea', emoji: '🌿' },
       { id: 'cold-coffee', name: 'Cold Coffee', emoji: '🧋' },
+      { id: 'white-coffee', name: 'White Coffee', emoji: '☕' },
+      { id: 'red-tea', name: 'Red Tea', emoji: '🫖' },
+      { id: 'juice', name: 'Juice', emoji: '🧃' },
       { id: 'water', name: 'Water Bottle', emoji: '💧' },
     ],
   },
@@ -24,6 +27,7 @@ export const MENU = [
       { id: 'noodles', name: 'Noodles', emoji: '🍜' },
       { id: 'chips', name: 'Chips', emoji: '🍟' },
       { id: 'fruit', name: 'Fruits', emoji: '🍎' },
+      { id: 'chanachur', name: 'Chanachur', emoji: '🥜' },
     ],
   },
 ];
