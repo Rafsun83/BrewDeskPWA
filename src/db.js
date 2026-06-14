@@ -1,21 +1,20 @@
-// Database layer.
+// Database layer — web version (localStorage replaces AsyncStorage).
 //
-// Two modes, picked automatically from DB_URL in src/config.js:
+// Two modes, picked from DB_URL in src/config.js:
 //  - SHARED  (DB_URL set): Firebase Realtime Database over plain HTTPS.
-//    Every phone reads/writes the same queue, so staff see all orders.
-//  - LOCAL   (DB_URL empty): AsyncStorage on this phone only (old behavior).
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DB_URL } from './config';
+//  - LOCAL   (DB_URL empty): localStorage on this browser only.
+import { DB_URL } from './config.js';
 
 const REQUESTS_KEY = '@brewdesk/requests';
-const SESSION_KEY = '@brewdesk/session'; // { employeeId, deviceToken }
-const LOCAL_EMPLOYEES_KEY = '@brewdesk/employees'; // local mode registry
+const SESSION_KEY  = '@brewdesk/session';
+const LOCAL_EMPLOYEES_KEY = '@brewdesk/employees';
+const CALLS_KEY    = '@brewdesk/calls';
 
 const BASE = (DB_URL || '').replace(/\/+$/, '');
 export const isShared = BASE !== '';
 
-// last successful fetch, shown if a refresh fails (e.g. brief network drop)
 let lastKnown = [];
+let lastKnownCalls = [];
 
 // ---- Shared mode: Firebase Realtime Database REST calls ----
 
@@ -26,55 +25,44 @@ async function fb(path, options = {}) {
   });
   if (!res.ok) {
     const err = new Error(`Database error (HTTP ${res.status})`);
-    // 401/403 = Firebase rules are blocking this node, not a network problem
     if (res.status === 401 || res.status === 403) err.code = 'denied';
     throw err;
   }
   return res.json();
 }
 
-// ---- Local mode helpers ----
+// ---- localStorage helpers (sync, wrapped async to match original API) ----
 
-async function readAll() {
-  try {
-    const raw = await AsyncStorage.getItem(REQUESTS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    return [];
-  }
+function lsGet(key) {
+  try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
 }
+function lsSet(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+function lsRemove(key) { localStorage.removeItem(key); }
 
-async function writeAll(list) {
-  await AsyncStorage.setItem(REQUESTS_KEY, JSON.stringify(list));
-}
+// ---- Requests ----
 
-// ---- Public API ----
+async function readAll() { return lsGet(REQUESTS_KEY) || []; }
+async function writeAll(list) { lsSet(REQUESTS_KEY, list); }
 
 export async function getRequests() {
   if (isShared) {
     try {
       const data = await fb('/requests');
       lastKnown = data ? Object.values(data) : [];
-    } catch (e) {
-      // network hiccup: keep showing the last list we got
-    }
+    } catch (e) { /* keep last known on network hiccup */ }
     return [...lastKnown].sort((a, b) => b.createdAt - a.createdAt);
   }
-  const list = await readAll();
-  return list.sort((a, b) => b.createdAt - a.createdAt);
+  return (await readAll()).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function addRequest({ itemId, itemName, emoji, qty, note, requester, requesterId }) {
   const req = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    itemId,
-    itemName,
-    emoji,
-    qty,
+    itemId, itemName, emoji, qty,
     note: note || '',
     requester: requester || 'Guest',
     requesterId: requesterId || '',
-    status: 'pending', // 'pending' | 'served'
+    status: 'pending',
     createdAt: Date.now(),
     servedAt: null,
   };
@@ -96,11 +84,9 @@ export async function markServed(id) {
     });
     return;
   }
-  const list = await readAll();
-  const next = list.map((r) =>
+  await writeAll((await readAll()).map(r =>
     r.id === id ? { ...r, status: 'served', servedAt: Date.now() } : r
-  );
-  await writeAll(next);
+  ));
 }
 
 export async function deleteRequest(id) {
@@ -108,59 +94,35 @@ export async function deleteRequest(id) {
     await fb(`/requests/${id}`, { method: 'DELETE' });
     return;
   }
-  const list = await readAll();
-  await writeAll(list.filter((r) => r.id !== id));
+  await writeAll((await readAll()).filter(r => r.id !== id));
 }
 
 export async function clearServed() {
   if (isShared) {
     const all = await getRequests();
     const removals = {};
-    all.filter((r) => r.status === 'served').forEach((r) => (removals[r.id] = null));
-    if (Object.keys(removals).length > 0) {
+    all.filter(r => r.status === 'served').forEach(r => { removals[r.id] = null; });
+    if (Object.keys(removals).length > 0)
       await fb('/requests', { method: 'PATCH', body: JSON.stringify(removals) });
-    }
     return;
   }
-  const list = await readAll();
-  await writeAll(list.filter((r) => r.status !== 'served'));
+  await writeAll((await readAll()).filter(r => r.status !== 'served'));
 }
 
 // ---- Staff calls ----
-//
-// An employee can "call" staff to their desk without ordering anything.
-// Stored at /calls/{id}. status flow: 'pending' (waiting for staff)
-// -> 'coming' (staff tapped "On my way"). When staff arrives they tap
-// "Done", which deletes the call. The employee can cancel while pending.
 
-const CALLS_KEY = '@brewdesk/calls';
-let lastKnownCalls = [];
-
-async function readCalls() {
-  try {
-    const raw = await AsyncStorage.getItem(CALLS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    return [];
-  }
-}
-
-async function writeCalls(list) {
-  await AsyncStorage.setItem(CALLS_KEY, JSON.stringify(list));
-}
+async function readCalls() { return lsGet(CALLS_KEY) || []; }
+async function writeCalls(list) { lsSet(CALLS_KEY, list); }
 
 export async function getCalls() {
   if (isShared) {
     try {
       const data = await fb('/calls');
       lastKnownCalls = data ? Object.values(data) : [];
-    } catch (e) {
-      // network hiccup: keep showing the last list we got
-    }
+    } catch (e) { /* keep last known */ }
     return [...lastKnownCalls].sort((a, b) => b.createdAt - a.createdAt);
   }
-  const list = await readCalls();
-  return list.sort((a, b) => b.createdAt - a.createdAt);
+  return (await readCalls()).sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export async function addCall({ callerName, callerId }) {
@@ -168,7 +130,7 @@ export async function addCall({ callerName, callerId }) {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     callerName: callerName || 'Guest',
     callerId: callerId || '',
-    status: 'pending', // 'pending' | 'coming'
+    status: 'pending',
     createdAt: Date.now(),
     comingAt: null,
   };
@@ -189,8 +151,7 @@ export async function setCallStatus(id, status) {
     await fb(`/calls/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
     return;
   }
-  const list = await readCalls();
-  await writeCalls(list.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  await writeCalls((await readCalls()).map(c => c.id === id ? { ...c, ...patch } : c));
 }
 
 export async function deleteCall(id) {
@@ -198,64 +159,34 @@ export async function deleteCall(id) {
     await fb(`/calls/${id}`, { method: 'DELETE' });
     return;
   }
-  const list = await readCalls();
-  await writeCalls(list.filter((c) => c.id !== id));
+  await writeCalls((await readCalls()).filter(c => c.id !== id));
 }
 
 // ---- Employee profiles ----
-//
-// Each employee registers once: name + email + employee ID + photo.
-// The profile is stored at /employees/{employeeId} together with a random
-// deviceToken that is also kept in this phone's AsyncStorage. Only the
-// phone holding the matching token "owns" that identity, so nobody can
-// order under someone else's name. New profiles start unapproved and an
-// admin must approve them from the admin panel before ordering.
 
 function makeToken() {
   return Array.from({ length: 4 }, () => Math.random().toString(36).slice(2, 10)).join('');
 }
 
-// Employee IDs become Firebase keys, so only allow safe characters.
 export function isValidEmployeeId(id) {
   return /^[A-Za-z0-9_-]{2,30}$/.test(id);
 }
 
-async function readLocalEmployees() {
-  try {
-    const raw = await AsyncStorage.getItem(LOCAL_EMPLOYEES_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (e) {
-    return {};
-  }
-}
+async function readLocalEmployees() { return lsGet(LOCAL_EMPLOYEES_KEY) || {}; }
+async function writeLocalEmployees(map) { lsSet(LOCAL_EMPLOYEES_KEY, map); }
 
-async function writeLocalEmployees(map) {
-  await AsyncStorage.setItem(LOCAL_EMPLOYEES_KEY, JSON.stringify(map));
-}
-
-async function readSession() {
-  try {
-    const raw = await AsyncStorage.getItem(SESSION_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch (e) {
-    return null;
-  }
-}
+function readSession() { return lsGet(SESSION_KEY); }
 
 async function fetchEmployee(employeeId) {
   if (isShared) return fb(`/employees/${employeeId}`);
-  const map = await readLocalEmployees();
-  return map[employeeId] || null;
+  return (await readLocalEmployees())[employeeId] || null;
 }
 
 export async function getEmployees() {
   const data = isShared ? await fb('/employees') : await readLocalEmployees();
-  return data
-    ? Object.values(data).sort((a, b) => a.createdAt - b.createdAt)
-    : [];
+  return data ? Object.values(data).sort((a, b) => a.createdAt - b.createdAt) : [];
 }
 
-// Claim an employee ID. Throws {code:'taken'} if someone already owns it.
 export async function registerEmployee({ employeeId, name, email, photo }) {
   const existing = await fetchEmployee(employeeId);
   if (existing) {
@@ -264,12 +195,9 @@ export async function registerEmployee({ employeeId, name, email, photo }) {
     throw err;
   }
   const profile = {
-    employeeId,
-    name,
-    email,
+    employeeId, name, email,
     photo: photo || '',
     deviceToken: makeToken(),
-    // local mode has no admin watching a shared queue — auto approve
     approved: !isShared,
     createdAt: Date.now(),
   };
@@ -280,23 +208,16 @@ export async function registerEmployee({ employeeId, name, email, photo }) {
     map[employeeId] = profile;
     await writeLocalEmployees(map);
   }
-  await AsyncStorage.setItem(
-    SESSION_KEY,
-    JSON.stringify({ employeeId, deviceToken: profile.deviceToken })
-  );
+  lsSet(SESSION_KEY, { employeeId, deviceToken: profile.deviceToken });
   return profile;
 }
 
-// Update name/email/photo of the profile this phone owns.
 export async function updateMyProfile({ name, email, photo }) {
-  const session = await readSession();
+  const session = readSession();
   if (!session) throw new Error('Not registered');
   const patch = { name, email, photo: photo || '' };
   if (isShared) {
-    await fb(`/employees/${session.employeeId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    });
+    await fb(`/employees/${session.employeeId}`, { method: 'PATCH', body: JSON.stringify(patch) });
   } else {
     const map = await readLocalEmployees();
     if (map[session.employeeId]) {
@@ -307,36 +228,27 @@ export async function updateMyProfile({ name, email, photo }) {
   return getMyProfile();
 }
 
-// The profile registered from this phone, fresh from the database.
-// Returns null (and clears the session) if the profile was removed by an
-// admin or the ID was re-registered from another phone.
 export async function getMyProfile() {
-  const session = await readSession();
+  const session = readSession();
   if (!session) return null;
   let profile;
   try {
     profile = await fetchEmployee(session.employeeId);
   } catch (e) {
-    // network hiccup — keep the session, caller can retry
     const err = new Error('offline');
     err.code = 'offline';
     throw err;
   }
   if (!profile || profile.deviceToken !== session.deviceToken) {
-    await AsyncStorage.removeItem(SESSION_KEY);
+    lsRemove(SESSION_KEY);
     return null;
   }
   return profile;
 }
 
-// ---- Admin actions ----
-
 export async function setEmployeeApproved(employeeId, approved) {
   if (isShared) {
-    await fb(`/employees/${employeeId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ approved }),
-    });
+    await fb(`/employees/${employeeId}`, { method: 'PATCH', body: JSON.stringify({ approved }) });
     return;
   }
   const map = await readLocalEmployees();
@@ -356,7 +268,6 @@ export async function deleteEmployee(employeeId) {
   await writeLocalEmployees(map);
 }
 
-// helper: "5 min ago"
 export function timeAgo(ts) {
   const diff = Math.max(0, Date.now() - ts);
   const min = Math.floor(diff / 60000);

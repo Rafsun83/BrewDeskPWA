@@ -1,22 +1,19 @@
-// BrewDesk theme — QP brand palette (navy & blue, same as app icon/splash)
+// BrewDesk theme — QP brand palette
 export const colors = {
-  // QP brand colors (same as the app icon / splash screen)
-  qpNavy: '#1b3380',     // brand background
-  qpNavyDeep: '#13265F', // darker navy — secondary surfaces on navy
-  qpBlue: '#1b87e6',     // brand accent blue
-  qpMist: '#AEBEE8',     // muted light blue — secondary text on navy
+  qpNavy:     '#1b3380',
+  qpNavyDeep: '#13265F',
+  qpBlue:     '#1b87e6',
+  qpMist:     '#AEBEE8',
 
-  // The original coffee-house token names are kept so screens don't need
-  // renaming, but their values now map to the QP brand palette.
-  espresso: '#13265F',   // deep navy — headers, primary text
-  bean: '#1b3380',       // brand navy — secondary surfaces
-  caramel: '#1b87e6',    // accent — buttons, highlights
-  cream: '#EEF3FB',      // app background (light blue tint)
-  foam: '#FFFFFF',       // cards
-  latte: '#5A6B96',      // muted blue-grey text
-  leaf: '#2F9E63',       // success / served
-  berry: '#D6493E',      // pending / alerts
-  line: '#D6DEF0',       // borders
+  espresso: '#13265F',
+  bean:     '#1b3380',
+  caramel:  '#1b87e6',
+  cream:    '#EEF3FB',
+  foam:     '#FFFFFF',
+  latte:    '#5A6B96',
+  leaf:     '#2F9E63',
+  berry:    '#D6493E',
+  line:     '#D6DEF0',
 };
 
 export const radius = {
@@ -27,10 +24,6 @@ export const radius = {
 
 export const shadow = {
   card: {
-    shadowColor: '#13265F',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    boxShadow: '0 4px 12px rgba(19,38,95,0.08)',
   },
 };

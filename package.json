@@ -1,25 +1,20 @@
 {
   "name": "brewdesk",
   "version": "1.0.0",
-  "main": "index.js",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "start": "expo start",
-    "android": "expo run:android",
-    "ios": "expo run:ios"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@react-native-async-storage/async-storage": "2.2.0",
-    "babel-preset-expo": "~54.0.10",
-    "expo": "^54.0.35",
-    "expo-image-manipulator": "~14.0.8",
-    "expo-image-picker": "~17.0.11",
-    "expo-notifications": "~0.32.17",
-    "expo-status-bar": "~3.0.9",
-    "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.2"
-  },
-  "private": true
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.1",
+    "vite-plugin-pwa": "^0.20.1"
+  }
 }
