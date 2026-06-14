@@ -21,7 +21,7 @@ function HealthRing({ score }) {
   const offset = C - (score / 100) * C;
   const color = score >= 70 ? HEALTH_COLOR.good : score >= 45 ? HEALTH_COLOR.moderate : HEALTH_COLOR.bad;
   return (
-    <svg width="136" height="136" viewBox="0 0 136 136" style={{ flexShrink: 0 }}>
+    <svg width="120" height="120" viewBox="0 0 136 136" style={{ flexShrink: 0 }}>
       <circle cx="68" cy="68" r={R} fill="none" stroke="#EEF3FB" strokeWidth="13" />
       <circle
         cx="68" cy="68" r={R} fill="none"
@@ -62,12 +62,12 @@ function HealthBar({ item, maxCount }) {
 }
 const bs = {
   row:   { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 },
-  emoji: { fontSize: 17, flexShrink: 0, width: 22, textAlign: 'center' },
-  label: { fontSize: 12, color: colors.espresso, fontWeight: 600, width: 108, flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  track: { flex: 1, height: 10, backgroundColor: '#EEF3FB', borderRadius: 999 },
+  emoji: { fontSize: 15, flexShrink: 0, width: 20, textAlign: 'center' },
+  label: { fontSize: 11, color: colors.espresso, fontWeight: 600, width: 96, flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  track: { flex: 1, height: 9, backgroundColor: '#EEF3FB', borderRadius: 999 },
   fill:  { height: '100%', borderRadius: 999, transition: 'width 0.7s ease' },
-  count: { fontSize: 12, color: colors.latte, fontWeight: 700, minWidth: 24, textAlign: 'right', flexShrink: 0 },
-  icon:  { fontSize: 12, flexShrink: 0 },
+  count: { fontSize: 11, color: colors.latte, fontWeight: 700, minWidth: 22, textAlign: 'right', flexShrink: 0 },
+  icon:  { fontSize: 11, flexShrink: 0 },
 };
 
 // ── Main screen ───────────────────────────────────────────────────────────────
@@ -77,10 +77,9 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
   const [qty, setQty] = useState(1);
   const [note, setNote] = useState('');
   const [myRequests, setMyRequests] = useState([]);
-  const [myOrderHistory, setMyOrderHistory] = useState([]);
+  const [servedHistory, setServedHistory] = useState([]);  // only served orders → health
   const [myCall, setMyCall] = useState(null);
   const [toast, setToast] = useState('');
-  const [activeTab, setActiveTab] = useState('menu');
 
   const showToast = (msg) => {
     setToast(msg);
@@ -91,7 +90,8 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
     const all = await getRequests();
     const mine = all.filter(r => r.requesterId === initialProfile.employeeId);
     setMyRequests(mine.slice(0, 10));
-    setMyOrderHistory(mine);
+    // Health stats only count orders staff has already served
+    setServedHistory(mine.filter(r => r.status === 'served'));
     const calls = await getCalls();
     const active = calls.find(c =>
       c.callerId === initialProfile.employeeId &&
@@ -113,20 +113,20 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
     return () => clearInterval(t);
   }, [loadMine, onProfileGone]);
 
-  // ── Health stats derived from full order history ────────────────────────────
+  // ── Health stats — only served orders ──────────────────────────────────────
   const healthStats = useMemo(() => {
-    if (!myOrderHistory.length) return null;
+    if (!servedHistory.length) return null;
     const counts = {};
     let totalQty = 0, goodQty = 0, modQty = 0, badQty = 0;
-    myOrderHistory.forEach(r => {
+    servedHistory.forEach(r => {
       const meta = ITEM_MAP[r.itemId];
       if (!meta) return;
       if (!counts[r.itemId]) counts[r.itemId] = { ...meta, count: 0 };
       counts[r.itemId].count += (r.qty || 1);
       totalQty += (r.qty || 1);
-      if (meta.health === 'good')     goodQty += (r.qty || 1);
-      else if (meta.health === 'moderate') modQty += (r.qty || 1);
-      else                            badQty  += (r.qty || 1);
+      if (meta.health === 'good')          goodQty += (r.qty || 1);
+      else if (meta.health === 'moderate') modQty  += (r.qty || 1);
+      else                                 badQty  += (r.qty || 1);
     });
     const topItems = Object.values(counts).sort((a, b) => b.count - a.count).slice(0, 8);
     const score = totalQty > 0 ? Math.round((goodQty / totalQty) * 100) : 0;
@@ -137,11 +137,11 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
       tip = `💚 ${topGood.name} is your top healthy pick — keep it up!`;
     else if (topBad && topBad.count >= 3) {
       const alt = topItems.find(i => i.health === 'good');
-      tip = `⚠️ You've ordered ${topBad.name} ${topBad.count}× — try swapping for ${alt ? alt.name : 'a healthier option'}!`;
+      tip = `⚠️ You've had ${topBad.name} ${topBad.count}× — try ${alt ? alt.name : 'a healthier option'} instead!`;
     } else if (score < 45)
-      tip = '🥗 Your mix is quite heavy. Adding Green Tea or Fruits helps!';
+      tip = '🥗 Your served orders are quite heavy. Adding Green Tea or Fruits helps!';
     return { topItems, score, totalQty, goodQty, modQty, badQty, tip };
-  }, [myOrderHistory]);
+  }, [servedHistory]);
 
   const openItem = (item) => {
     if (!profile.approved) { showToast('Your profile is waiting for admin approval ⏳'); return; }
@@ -191,35 +191,13 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
         <div style={{ width: 60 }} />
       </div>
 
-      {/* Tab bar */}
-      <div style={s.tabBar}>
-        <button
-          style={{ ...s.tab, ...(activeTab === 'menu' ? s.tabActive : {}) }}
-          onClick={() => setActiveTab('menu')}
-        >
-          ☕ Menu
-        </button>
-        <button
-          style={{ ...s.tab, ...(activeTab === 'health' ? s.tabActive : {}) }}
-          onClick={() => setActiveTab('health')}
-        >
-          Health Insights
-          {healthStats && (
-            <span style={{
-              ...s.tabBadge,
-              backgroundColor: healthStats.score >= 70 ? '#EDFBF3' : healthStats.score >= 45 ? '#FFF8EC' : '#FFF0EF',
-              color: healthStats.score >= 70 ? HEALTH_COLOR.good : healthStats.score >= 45 ? HEALTH_COLOR.moderate : HEALTH_COLOR.bad,
-            }}>
-              {healthStats.score}%
-            </span>
-          )}
-        </button>
-      </div>
+      {/* Scrollable area */}
+      <div style={s.body}>
+        {/* Two-column layout: menu (left) + health insights (right) */}
+        <div className="order-layout">
 
-      {/* ── MENU TAB ─────────────────────────────────────────────────────────── */}
-      {activeTab === 'menu' && (
-        <div style={s.body}>
-          <div style={s.content}>
+          {/* ── LEFT: ordering content ───────────────────────────────────── */}
+          <div className="order-main">
 
             {/* Profile card */}
             <div style={{ ...s.profileCard, ...shadow.card }}>
@@ -297,7 +275,6 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
                     >
                       <span style={s.itemEmoji}>{item.emoji}</span>
                       <span style={s.itemName}>{item.name}</span>
-                      {/* Small health dot on each card */}
                       <span style={{
                         ...s.itemHealthDot,
                         backgroundColor: HEALTH_COLOR[item.health] || HEALTH_COLOR.moderate,
@@ -329,28 +306,25 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
 
             <div style={{ height: 40 }} />
           </div>
-        </div>
-      )}
 
-      {/* ── HEALTH TAB ───────────────────────────────────────────────────────── */}
-      {activeTab === 'health' && (
-        <div style={s.body}>
-          <div style={s.content}>
+          {/* ── RIGHT: health insights (sidebar on desktop, below on mobile) ── */}
+          <div className="order-health">
+            <p className="order-health-title">📊 Health Insights</p>
 
             {!healthStats ? (
-              /* Empty state */
-              <div style={s.healthEmpty}>
-                <span style={s.healthEmptyEmoji}>📊</span>
-                <p style={s.healthEmptyTitle}>No order history yet</p>
-                <p style={s.healthEmptyDesc}>
-                  Place a few orders from the Menu tab and your health insights will appear here.
+              <div style={{ ...s.chartCard, ...shadow.card, textAlign: 'center', paddingTop: 28, paddingBottom: 28 }}>
+                <span style={{ fontSize: 36 }}>🥗</span>
+                <p style={{ fontSize: 14, fontWeight: 700, color: colors.espresso, margin: '10px 0 6px' }}>
+                  No served orders yet
+                </p>
+                <p style={{ fontSize: 12, color: colors.latte, lineHeight: '18px' }}>
+                  Stats update after staff marks your orders as served.
                 </p>
               </div>
             ) : (
               <>
                 {/* Score card */}
                 <div style={{ ...s.scoreCard, ...shadow.card }}>
-                  <p style={s.scoreCardTitle}>Overall Health Score</p>
                   <div style={s.scoreCardBody}>
                     <HealthRing score={healthStats.score} />
                     <div style={s.scoreRight}>
@@ -359,8 +333,7 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
                           {healthStats.score >= 70 ? 'Great' : healthStats.score >= 45 ? 'Fair' : 'Poor'}
                         </span>
                       </p>
-                      <p style={s.scoreSub}>{healthStats.totalQty} total orders analysed</p>
-                      {/* Legend pills */}
+                      <p style={s.scoreSub}>{healthStats.totalQty} orders served</p>
                       <div style={s.legendRow}>
                         {[
                           { key: 'good',     qty: healthStats.goodQty },
@@ -389,7 +362,7 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
                 {/* Bar chart */}
                 <div style={{ ...s.chartCard, ...shadow.card }}>
                   <div style={s.chartHeader}>
-                    <p style={s.chartTitle}>Your most ordered items</p>
+                    <p style={s.chartTitle}>Most ordered (served)</p>
                     <div style={s.chartLegend}>
                       {['good', 'moderate', 'bad'].map(k => (
                         <span key={k} style={s.chartLegendItem}>
@@ -404,12 +377,12 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
                   ))}
                 </div>
 
-                {/* Per-category summary */}
+                {/* Category summary */}
                 <div style={s.catRow}>
                   {[
-                    { key: 'good',     label: '💚 Healthy',    qty: healthStats.goodQty },
-                    { key: 'moderate', label: '🟡 Moderate',   qty: healthStats.modQty  },
-                    { key: 'bad',      label: '🔴 Unhealthy',  qty: healthStats.badQty  },
+                    { key: 'good',     label: '💚 Healthy',   qty: healthStats.goodQty },
+                    { key: 'moderate', label: '🟡 Moderate',  qty: healthStats.modQty  },
+                    { key: 'bad',      label: '🔴 Unhealthy', qty: healthStats.badQty  },
                   ].map(({ key, label, qty }) => (
                     <div key={key} style={{ ...s.catBox, ...shadow.card, backgroundColor: HEALTH_BG[key], border: `1px solid ${HEALTH_COLOR[key]}30` }}>
                       <span style={{ ...s.catNum, color: HEALTH_COLOR[key] }}>{qty}</span>
@@ -422,8 +395,9 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
 
             <div style={{ height: 40 }} />
           </div>
-        </div>
-      )}
+
+        </div>{/* end .order-layout */}
+      </div>
 
       {/* Toast */}
       {toast && (
@@ -436,7 +410,6 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
           <div className="order-sheet" onClick={e => e.stopPropagation()}>
             <span style={s.sheetEmoji}>{selected.emoji}</span>
             <p style={s.sheetTitle}>{selected.name}</p>
-            {/* Health badge in modal */}
             <div style={{
               ...s.sheetHealthBadge,
               backgroundColor: HEALTH_BG[selected.health],
@@ -450,7 +423,6 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
                 <span style={{ fontSize: 11, color: colors.latte, marginLeft: 6 }}>~{selected.cal} kcal</span>
               )}
             </div>
-
             <div style={s.qtyRow}>
               <button style={s.qtyBtn} onClick={() => setQty(Math.max(1, qty - 1))}>
                 <span style={s.qtyBtnText}>−</span>
@@ -460,7 +432,6 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
                 <span style={s.qtyBtnText}>+</span>
               </button>
             </div>
-
             <input
               className="brew-input"
               style={s.noteInput}
@@ -468,7 +439,6 @@ export default function OrderScreen({ profile: initialProfile, onBack, onEditPro
               onChange={e => setNote(e.target.value)}
               placeholder="Note (optional) — e.g. less sugar"
             />
-
             <button style={s.sendBtn} onClick={submit}>
               <span style={s.sendBtnText}>☕ Send request</span>
             </button>
@@ -508,83 +478,27 @@ const s = {
   backText: { color: colors.caramel, fontSize: 17, fontWeight: 600 },
   headerTitle: { color: colors.foam, fontSize: 19, fontWeight: 700 },
 
-  /* Tab bar */
-  tabBar: {
-    display: 'flex',
-    flexDirection: 'row',
-    backgroundColor: colors.foam,
-    borderBottom: `1px solid ${colors.line}`,
-    flexShrink: 0,
-  },
-  tab: {
-    flex: 1,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    padding: '12px 0',
-    fontSize: 13,
-    fontWeight: 600,
-    color: colors.latte,
-    backgroundColor: 'transparent',
-    border: 'none',
-    borderBottom: '3px solid transparent',
-    cursor: 'pointer',
-    transition: 'color 0.15s ease, border-color 0.15s ease',
-  },
-  tabActive: {
-    color: colors.caramel,
-    borderBottomColor: colors.caramel,
-    fontWeight: 700,
-  },
-  tabBadge: {
-    fontSize: 11,
-    fontWeight: 700,
-    borderRadius: 999,
-    paddingLeft: 7,
-    paddingRight: 7,
-    paddingTop: 2,
-    paddingBottom: 2,
-  },
-
   /* Scrollable body */
   body: {
     flex: 1,
     overflowY: 'auto',
     WebkitOverflowScrolling: 'touch',
-    display: 'flex',
-    justifyContent: 'center',
-  },
-
-  /* Centered content column */
-  content: {
-    width: '100%',
-    maxWidth: 720,
-    padding: '16px 16px 0',
   },
 
   /* Profile card */
   profileCard: {
-    display: 'flex',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.foam,
-    borderRadius: radius.md,
-    border: `1px solid ${colors.line}`,
-    padding: '12px 16px',
-    marginBottom: 12,
+    display: 'flex', flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.foam, borderRadius: radius.md,
+    border: `1px solid ${colors.line}`, padding: '12px 16px', marginBottom: 12,
   },
   avatar: { width: 48, height: 48, borderRadius: '50%', marginRight: 12, objectFit: 'cover', flexShrink: 0 },
   avatarFallback: { backgroundColor: colors.cream, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   profileName: { fontSize: 15, fontWeight: 800, color: colors.espresso },
   profileMeta: { fontSize: 12, color: colors.latte, marginTop: 2 },
   editBtn: {
-    border: `1px solid ${colors.line}`,
-    borderRadius: 999,
+    border: `1px solid ${colors.line}`, borderRadius: 999,
     paddingLeft: 14, paddingRight: 14, paddingTop: 7, paddingBottom: 7,
-    backgroundColor: 'transparent',
-    cursor: 'pointer',
-    flexShrink: 0,
+    backgroundColor: 'transparent', cursor: 'pointer', flexShrink: 0,
   },
   editBtnText: { color: colors.caramel, fontWeight: 700, fontSize: 12 },
 
@@ -592,8 +506,7 @@ const s = {
   pendingBanner: {
     display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 12,
     backgroundColor: '#DCEAFB', borderRadius: radius.md,
-    border: `1px solid ${colors.caramel}`,
-    padding: '14px 16px', marginBottom: 12,
+    border: `1px solid ${colors.caramel}`, padding: '14px 16px', marginBottom: 12,
   },
   pendingIcon: { fontSize: 20, flexShrink: 0, marginTop: 1 },
   pendingTitle: { fontWeight: 800, color: colors.espresso, marginBottom: 3, fontSize: 14 },
@@ -609,8 +522,7 @@ const s = {
   callBanner: {
     display: 'flex', flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.foam, borderRadius: radius.md,
-    border: `1.5px solid ${colors.caramel}`,
-    padding: '14px 16px', marginBottom: 12,
+    border: `1.5px solid ${colors.caramel}`, padding: '14px 16px', marginBottom: 12,
   },
   callEmoji: { fontSize: 26, marginRight: 12, flexShrink: 0 },
   callBtnTitle: { fontSize: 15, fontWeight: 800, color: colors.foam },
@@ -655,8 +567,7 @@ const s = {
   reqRow: {
     display: 'flex', flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.foam, borderRadius: radius.md,
-    border: `1px solid ${colors.line}`,
-    padding: '12px 14px', marginBottom: 10,
+    border: `1px solid ${colors.line}`, padding: '12px 14px', marginBottom: 10,
   },
   reqEmoji: { fontSize: 24, marginRight: 12, flexShrink: 0 },
   reqName: { fontSize: 14, fontWeight: 700, color: colors.espresso },
@@ -666,70 +577,48 @@ const s = {
   badgeServed: { backgroundColor: '#D9F0E3' },
   badgeText: { fontSize: 12, fontWeight: 700, color: colors.espresso },
 
-  /* ── Health tab ─────────────────────────────────────────────────────────── */
-  healthEmpty: {
-    display: 'flex', flexDirection: 'column', alignItems: 'center',
-    marginTop: 80, paddingLeft: 24, paddingRight: 24,
-  },
-  healthEmptyEmoji: { fontSize: 52, marginBottom: 12 },
-  healthEmptyTitle: { fontSize: 17, fontWeight: 700, color: colors.espresso, marginBottom: 8 },
-  healthEmptyDesc: { fontSize: 14, color: colors.latte, textAlign: 'center', lineHeight: '22px', maxWidth: 300 },
-
-  /* Score card */
+  /* ── Health insights ────────────────────────────────────────────────────── */
   scoreCard: {
-    backgroundColor: colors.foam,
-    borderRadius: radius.lg,
-    border: `1px solid ${colors.line}`,
-    padding: '20px 20px 16px',
-    marginBottom: 14,
+    backgroundColor: colors.foam, borderRadius: radius.lg,
+    border: `1px solid ${colors.line}`, padding: '16px', marginBottom: 12,
   },
-  scoreCardTitle: { fontSize: 13, fontWeight: 700, color: colors.latte, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 16 },
-  scoreCardBody: { display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 20 },
+  scoreCardBody: { display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16 },
   scoreRight: { flex: 1 },
-  scoreBig: { fontSize: 26, fontWeight: 800, marginBottom: 4 },
-  scoreSub: { fontSize: 12, color: colors.latte, marginBottom: 14 },
-  legendRow: { display: 'flex', flexDirection: 'column', gap: 6 },
+  scoreBig: { fontSize: 22, fontWeight: 800, marginBottom: 2 },
+  scoreSub: { fontSize: 11, color: colors.latte, marginBottom: 10 },
+  legendRow: { display: 'flex', flexDirection: 'column', gap: 5 },
   legendPill: {
-    display: 'inline-flex', alignItems: 'center', gap: 6,
-    borderRadius: 999, paddingLeft: 10, paddingRight: 10, paddingTop: 4, paddingBottom: 4,
+    display: 'inline-flex', alignItems: 'center', gap: 5,
+    borderRadius: 999, paddingLeft: 8, paddingRight: 8, paddingTop: 3, paddingBottom: 3,
     alignSelf: 'flex-start',
   },
-  legendDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
-  legendText: { fontSize: 12, fontWeight: 700 },
+  legendDot: { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 },
+  legendText: { fontSize: 11, fontWeight: 700 },
 
-  /* Tip */
   tipCard: {
-    backgroundColor: '#FFFBEC',
-    borderRadius: radius.md,
-    border: `1px solid #FFE88A`,
-    padding: '14px 16px',
-    marginBottom: 14,
+    backgroundColor: '#FFFBEC', borderRadius: radius.md,
+    border: '1px solid #FFE88A', padding: '12px 14px', marginBottom: 12,
   },
-  tipText: { fontSize: 13, color: '#7A5800', fontWeight: 600, lineHeight: '20px' },
+  tipText: { fontSize: 12, color: '#7A5800', fontWeight: 600, lineHeight: '18px' },
 
-  /* Bar chart card */
   chartCard: {
-    backgroundColor: colors.foam,
-    borderRadius: radius.lg,
-    border: `1px solid ${colors.line}`,
-    padding: '18px 18px 10px',
-    marginBottom: 14,
+    backgroundColor: colors.foam, borderRadius: radius.lg,
+    border: `1px solid ${colors.line}`, padding: '16px 16px 8px', marginBottom: 12,
   },
-  chartHeader: { display: 'flex', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 },
-  chartTitle: { fontSize: 14, fontWeight: 700, color: colors.espresso },
-  chartLegend: { display: 'flex', flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  chartLegendItem: { display: 'flex', alignItems: 'center', gap: 4 },
-  chartLegendDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
-  chartLegendLabel: { fontSize: 10, color: colors.latte, fontWeight: 600 },
+  chartHeader: { display: 'flex', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 },
+  chartTitle: { fontSize: 13, fontWeight: 700, color: colors.espresso },
+  chartLegend: { display: 'flex', flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  chartLegendItem: { display: 'flex', alignItems: 'center', gap: 3 },
+  chartLegendDot: { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 },
+  chartLegendLabel: { fontSize: 9, color: colors.latte, fontWeight: 600 },
 
-  /* Category summary row */
-  catRow: { display: 'flex', flexDirection: 'row', gap: 10, marginBottom: 14 },
+  catRow: { display: 'flex', flexDirection: 'row', gap: 8, marginBottom: 12 },
   catBox: {
-    flex: 1, borderRadius: radius.md, padding: '12px 8px',
+    flex: 1, borderRadius: radius.md, padding: '10px 6px',
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
   },
-  catNum: { fontSize: 22, fontWeight: 800 },
-  catLabel: { fontSize: 11, color: colors.latte, fontWeight: 600, textAlign: 'center' },
+  catNum: { fontSize: 20, fontWeight: 800 },
+  catLabel: { fontSize: 10, color: colors.latte, fontWeight: 600, textAlign: 'center' },
 
   /* Toast */
   toast: {
