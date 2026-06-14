@@ -48,14 +48,14 @@ export default function StaffScreen({ onBack }) {
       const map = {};
       employees.forEach(e => { if (e.photo) map[e.employeeId] = e.photo; });
       setPhotos(map);
-    } catch (e) { /* offline — keep existing photos */ }
+    } catch (e) { /* offline */ }
   }, []);
 
   useEffect(() => {
     initStaffAlerts();
     load();
     loadPhotos();
-    const t = setInterval(load, 3000);
+    const t  = setInterval(load, 3000);
     const tp = setInterval(loadPhotos, 60000);
     return () => { clearInterval(t); clearInterval(tp); };
   }, [load, loadPhotos]);
@@ -93,136 +93,201 @@ export default function StaffScreen({ onBack }) {
   const list = showServed ? served : pending;
 
   return (
-    <div style={s.container}>
+    <div style={s.page}>
+
+      {/* Header */}
       <div style={s.header}>
         <button style={s.backBtn} onClick={onBack}><span style={s.backText}>‹ Back</span></button>
-        <span style={s.headerTitle}>Staff Panel</span>
+        <div style={s.headerCenter}>
+          <span style={s.headerTitle}>Staff Panel</span>
+          <span style={s.liveBadge}>
+            <span className="live-dot" />
+            <span style={s.liveText}>Live</span>
+          </span>
+        </div>
         <div style={{ width: 60 }} />
       </div>
 
-      <div style={s.statsRow}>
-        <div style={{ ...s.statBox, ...shadow.card }}>
-          <span style={s.statNum}>{pending.length}</span>
-          <span style={s.statLabel}>Pending</span>
-        </div>
-        <div style={{ ...s.statBox, ...shadow.card }}>
-          <span style={{ ...s.statNum, color: colors.leaf }}>{served.length}</span>
-          <span style={s.statLabel}>Served</span>
-        </div>
-      </div>
+      {/* Scrollable body — centered at maxWidth 800px */}
+      <div style={s.body}>
+        <div style={s.content}>
 
-      <div style={s.tabRow}>
-        <button
-          style={{ ...s.tab, ...(!showServed ? s.tabActive : {}) }}
-          onClick={() => setShowServed(false)}
-        >
-          <span style={{ ...s.tabText, ...(!showServed ? s.tabTextActive : {}) }}>Pending queue</span>
-        </button>
-        <button
-          style={{ ...s.tab, ...(showServed ? s.tabActive : {}) }}
-          onClick={() => setShowServed(true)}
-        >
-          <span style={{ ...s.tabText, ...(showServed ? s.tabTextActive : {}) }}>Served history</span>
-        </button>
-      </div>
-
-      <div style={s.listContainer}>
-        {/* Active calls — pinned above the pending queue */}
-        {!showServed && calls.map(c => (
-          <div key={c.id} style={{ ...s.card, ...s.callCard, ...shadow.card }}>
-            <span style={s.cardEmoji}>🔔</span>
-            <div style={{ flex: 1 }}>
-              <p style={s.cardTitle}>{c.callerName} is calling you</p>
-              <div style={s.metaRow}>
-                {photos[c.callerId] && (
-                  <img src={photos[c.callerId]} style={s.miniAvatar} alt="" />
-                )}
-                <span style={s.cardMeta}>{c.callerId} · {timeAgo(c.createdAt)}</span>
-              </div>
-              {c.status === 'coming' && <span style={s.cardNote}>You&apos;re on your way 👋</span>}
+          {/* Stats row — calls / pending / served */}
+          <div style={s.statsRow}>
+            <div style={{ ...s.statBox, ...shadow.card }}>
+              <span style={s.statEmoji}>🔔</span>
+              <span style={{ ...s.statNum, color: calls.length > 0 ? colors.berry : colors.latte }}>
+                {calls.length}
+              </span>
+              <span style={s.statLabel}>Active calls</span>
             </div>
-            {c.status === 'pending'
-              ? <button style={s.comingBtn} onClick={() => respondCall(c.id)}><span style={s.serveText}>On my way 👋</span></button>
-              : <button style={s.serveBtn} onClick={() => finishCall(c.id)}><span style={s.serveText}>Done ✓</span></button>
-            }
+            <div style={{ ...s.statBox, ...shadow.card }}>
+              <span style={s.statEmoji}>⏳</span>
+              <span style={{ ...s.statNum, color: pending.length > 0 ? colors.caramel : colors.latte }}>
+                {pending.length}
+              </span>
+              <span style={s.statLabel}>Pending</span>
+            </div>
+            <div style={{ ...s.statBox, ...shadow.card }}>
+              <span style={s.statEmoji}>✓</span>
+              <span style={{ ...s.statNum, color: colors.leaf }}>{served.length}</span>
+              <span style={s.statLabel}>Served today</span>
+            </div>
           </div>
-        ))}
 
-        {/* Queue / history */}
-        {list.map(item => (
-          showServed ? (
-            <div key={item.id} style={{ ...s.card, opacity: 0.85 }}>
-              <span style={s.cardEmoji}>{item.emoji}</span>
-              <div style={{ flex: 1 }}>
-                <p style={{ ...s.cardTitle, textDecoration: 'line-through', color: colors.latte }}>
-                  {item.qty} × {item.itemName}
-                </p>
-                <div style={s.metaRow}>
-                  {photos[item.requesterId] && (
-                    <img src={photos[item.requesterId]} style={s.miniAvatar} alt="" />
-                  )}
-                  <span style={s.cardMeta}>{item.requester} · served {timeAgo(item.servedAt)}</span>
-                </div>
-              </div>
-              <span style={s.servedCheck}>✓</span>
-            </div>
-          ) : (
-            <div key={item.id} style={{ ...s.card, ...shadow.card }}>
-              <span style={s.cardEmoji}>{item.emoji}</span>
-              <div style={{ flex: 1 }}>
-                <p style={s.cardTitle}>{item.qty} × {item.itemName}</p>
-                <div style={s.metaRow}>
-                  {photos[item.requesterId] && (
-                    <img src={photos[item.requesterId]} style={s.miniAvatar} alt="" />
-                  )}
-                  <span style={s.cardMeta}>{item.requester} · {timeAgo(item.createdAt)}</span>
-                </div>
-                {item.note ? <span style={s.cardNote}>&ldquo;{item.note}&rdquo;</span> : null}
-              </div>
-              <div style={s.actions}>
-                <button style={s.serveBtn} onClick={() => serve(item.id)}>
-                  <span style={s.serveText}>Serve ✓</span>
-                </button>
-                <button style={s.deleteBtn} onClick={() => remove(item.id)}>
-                  <span style={s.deleteText}>Delete</span>
-                </button>
-              </div>
-            </div>
-          )
-        ))}
-
-        {/* Empty state */}
-        {list.length === 0 && (!(!showServed && calls.length > 0)) && (
-          <div style={s.empty}>
-            <span style={s.emptyEmoji}>{showServed ? '🗒️' : '🎉'}</span>
-            <p style={s.emptyText}>
-              {showServed ? 'No served items yet.' : 'No pending requests. All caught up!'}
-            </p>
+          {/* Tab switcher */}
+          <div style={s.tabRow}>
+            <button
+              style={{ ...s.tab, ...(!showServed ? s.tabActive : {}) }}
+              onClick={() => setShowServed(false)}
+            >
+              <span style={{ ...s.tabText, ...(!showServed ? s.tabTextActive : {}) }}>
+                Pending queue {pending.length > 0 && !showServed
+                  ? <span style={s.tabBadge}>{pending.length}</span>
+                  : null}
+              </span>
+            </button>
+            <button
+              style={{ ...s.tab, ...(showServed ? s.tabActive : {}) }}
+              onClick={() => setShowServed(true)}
+            >
+              <span style={{ ...s.tabText, ...(showServed ? s.tabTextActive : {}) }}>Served history</span>
+            </button>
           </div>
-        )}
 
-        <div style={{ height: showServed && served.length > 0 ? 80 : 24 }} />
+          {/* ── Pending tab ── */}
+          {!showServed && (
+            <>
+              {/* Active calls — full-width, pinned above the queue */}
+              {calls.map(c => (
+                <div key={c.id} style={{ ...s.callCard, ...shadow.card }}>
+                  <div style={s.callCardLeft}>
+                    <span style={s.callCardEmoji}>🔔</span>
+                    <div>
+                      <p style={s.callCardTitle}>{c.callerName} is calling you</p>
+                      <div style={s.metaRow}>
+                        {photos[c.callerId] && (
+                          <img src={photos[c.callerId]} style={s.miniAvatar} alt="" />
+                        )}
+                        <span style={s.cardMeta}>{c.callerId} · {timeAgo(c.createdAt)}</span>
+                      </div>
+                      {c.status === 'coming' && (
+                        <span style={s.comingNote}>You&apos;re on your way 👋</span>
+                      )}
+                    </div>
+                  </div>
+                  {c.status === 'pending'
+                    ? <button style={s.comingBtn} onClick={() => respondCall(c.id)}>
+                        <span style={s.btnText}>On my way 👋</span>
+                      </button>
+                    : <button style={s.doneBtn} onClick={() => finishCall(c.id)}>
+                        <span style={s.btnText}>Done ✓</span>
+                      </button>
+                  }
+                </div>
+              ))}
+
+              {/* Pending queue — 2-col grid on desktop */}
+              {pending.length > 0 && (
+                <div className="staff-queue">
+                  {pending.map(item => (
+                    <div key={item.id} style={{ ...s.card, ...shadow.card }}>
+                      <span style={s.cardEmoji}>{item.emoji}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={s.cardTitle}>{item.qty} × {item.itemName}</p>
+                        <div style={s.metaRow}>
+                          {photos[item.requesterId] && (
+                            <img src={photos[item.requesterId]} style={s.miniAvatar} alt="" />
+                          )}
+                          <span style={s.cardMeta}>{item.requester} · {timeAgo(item.createdAt)}</span>
+                        </div>
+                        {item.note && <span style={s.cardNote}>&ldquo;{item.note}&rdquo;</span>}
+                      </div>
+                      <div style={s.actions}>
+                        <button style={s.serveBtn} onClick={() => serve(item.id)}>
+                          <span style={s.serveBtnText}>Serve ✓</span>
+                        </button>
+                        <button style={s.deleteBtn} onClick={() => remove(item.id)}>
+                          <span style={s.deleteText}>Delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Pending empty state */}
+              {pending.length === 0 && calls.length === 0 && (
+                <div style={s.empty}>
+                  <span style={s.emptyEmoji}>🎉</span>
+                  <p style={s.emptyTitle}>All caught up!</p>
+                  <p style={s.emptyText}>No pending requests right now.</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── Served tab ── */}
+          {showServed && (
+            <>
+              {/* Inline "Clear history" at top of served list */}
+              {served.length > 0 && (
+                <div style={s.clearRow}>
+                  <p style={s.servedCount}>{served.length} item{served.length !== 1 ? 's' : ''} served</p>
+                  <button style={s.clearBtn} onClick={clearHistory}>
+                    <span style={s.clearText}>🗑 Clear all</span>
+                  </button>
+                </div>
+              )}
+
+              <div className="staff-queue">
+                {served.map(item => (
+                  <div key={item.id} style={s.servedCard}>
+                    <span style={{ ...s.cardEmoji, opacity: 0.6 }}>{item.emoji}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={s.servedTitle}>{item.qty} × {item.itemName}</p>
+                      <div style={s.metaRow}>
+                        {photos[item.requesterId] && (
+                          <img src={photos[item.requesterId]} style={s.miniAvatar} alt="" />
+                        )}
+                        <span style={s.cardMeta}>{item.requester} · served {timeAgo(item.servedAt)}</span>
+                      </div>
+                    </div>
+                    <span style={s.servedCheck}>✓</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Served empty state */}
+              {served.length === 0 && (
+                <div style={s.empty}>
+                  <span style={s.emptyEmoji}>🗒️</span>
+                  <p style={s.emptyTitle}>Nothing served yet</p>
+                  <p style={s.emptyText}>Served requests will appear here.</p>
+                </div>
+              )}
+            </>
+          )}
+
+          <div style={{ height: 32 }} />
+        </div>
       </div>
-
-      {showServed && served.length > 0 && (
-        <button style={s.clearBtn} onClick={clearHistory}>
-          <span style={s.clearText}>Clear served history</span>
-        </button>
-      )}
     </div>
   );
 }
 
 const s = {
-  container: {
+  page: {
     display: 'flex',
     flexDirection: 'column',
     height: '100dvh',
     backgroundColor: colors.cream,
     overflow: 'hidden',
   },
+
+  /* Header */
   header: {
-    paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)',
+    paddingTop: 'calc(env(safe-area-inset-top, 0px) + 14px)',
     paddingBottom: 14,
     paddingLeft: 16,
     paddingRight: 16,
@@ -235,13 +300,33 @@ const s = {
   },
   backBtn: { width: 60, textAlign: 'left', backgroundColor: 'transparent' },
   backText: { color: colors.caramel, fontSize: 17, fontWeight: 600 },
+  headerCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 },
   headerTitle: { color: colors.foam, fontSize: 19, fontWeight: 700 },
+  liveBadge: { display: 'flex', alignItems: 'center' },
+  liveText: { color: colors.leaf, fontSize: 11, fontWeight: 700, letterSpacing: 0.5 },
+
+  /* Scrollable body */
+  body: {
+    flex: 1,
+    overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    display: 'flex',
+    justifyContent: 'center',
+  },
+
+  /* Centered content */
+  content: {
+    width: '100%',
+    maxWidth: 800,
+    padding: '16px 16px 0',
+  },
+
+  /* Stats */
   statsRow: {
     display: 'flex',
     flexDirection: 'row',
-    gap: 12,
-    padding: '16px 16px 4px',
-    flexShrink: 0,
+    gap: 10,
+    marginBottom: 14,
   },
   statBox: {
     flex: 1,
@@ -251,18 +336,21 @@ const s = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    paddingTop: 14,
-    paddingBottom: 14,
+    paddingTop: 12,
+    paddingBottom: 12,
   },
-  statNum: { fontSize: 26, fontWeight: 800, color: colors.berry },
-  statLabel: { fontSize: 12, color: colors.latte, marginTop: 2, fontWeight: 600 },
+  statEmoji: { fontSize: 16, marginBottom: 4 },
+  statNum: { fontSize: 24, fontWeight: 800, lineHeight: 1 },
+  statLabel: { fontSize: 11, color: colors.latte, marginTop: 4, fontWeight: 600, textAlign: 'center' },
+
+  /* Tabs */
   tabRow: {
     display: 'flex',
     flexDirection: 'row',
-    margin: '12px 16px 0',
     backgroundColor: '#DCE4F5',
     borderRadius: 999,
     padding: 4,
+    marginBottom: 14,
     flexShrink: 0,
   },
   tab: {
@@ -276,29 +364,39 @@ const s = {
     cursor: 'pointer',
     backgroundColor: 'transparent',
     border: 'none',
+    gap: 6,
   },
   tabActive: { backgroundColor: colors.espresso },
-  tabText: { fontSize: 14, fontWeight: 700, color: colors.latte },
+  tabText: { fontSize: 14, fontWeight: 700, color: colors.latte, display: 'flex', alignItems: 'center', gap: 6 },
   tabTextActive: { color: colors.foam },
-  listContainer: {
-    flex: 1,
-    overflowY: 'auto',
-    WebkitOverflowScrolling: 'touch',
-    padding: 16,
-    paddingBottom: 0,
-    position: 'relative',
+  tabBadge: {
+    backgroundColor: colors.berry,
+    color: '#fff',
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 800,
+    paddingLeft: 6,
+    paddingRight: 6,
+    paddingTop: 1,
+    paddingBottom: 1,
   },
-  card: {
+
+  /* Call cards — full width, highlighted */
+  callCard: {
     display: 'flex',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.foam,
+    backgroundColor: '#EAF3FD',
     borderRadius: radius.md,
-    border: `1px solid ${colors.line}`,
-    padding: 14,
-    marginBottom: 12,
+    border: `2px solid ${colors.caramel}`,
+    padding: '14px 16px',
+    marginBottom: 14,
+    gap: 12,
   },
-  callCard: { borderColor: colors.caramel, borderWidth: 1.5, backgroundColor: '#EAF3FD' },
+  callCardLeft: { display: 'flex', flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12, minWidth: 0 },
+  callCardEmoji: { fontSize: 28, flexShrink: 0 },
+  callCardTitle: { fontSize: 15, fontWeight: 800, color: colors.espresso },
+  comingNote: { fontSize: 12, color: colors.caramel, fontWeight: 700, marginTop: 3 },
   comingBtn: {
     backgroundColor: colors.caramel,
     borderRadius: radius.sm,
@@ -309,15 +407,9 @@ const s = {
     cursor: 'pointer',
     flexShrink: 0,
     border: 'none',
+    boxShadow: '0 3px 10px rgba(27,135,230,0.3)',
   },
-  cardEmoji: { fontSize: 30, marginRight: 12, flexShrink: 0 },
-  cardTitle: { fontSize: 16, fontWeight: 800, color: colors.espresso },
-  metaRow: { display: 'flex', flexDirection: 'row', alignItems: 'center', marginTop: 3, gap: 6 },
-  miniAvatar: { width: 18, height: 18, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 },
-  cardMeta: { fontSize: 12, color: colors.latte, marginTop: 2 },
-  cardNote: { fontSize: 13, color: colors.bean, marginTop: 4, fontStyle: 'italic' },
-  actions: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 },
-  serveBtn: {
+  doneBtn: {
     backgroundColor: colors.leaf,
     borderRadius: radius.sm,
     paddingLeft: 14,
@@ -325,33 +417,93 @@ const s = {
     paddingTop: 10,
     paddingBottom: 10,
     cursor: 'pointer',
+    flexShrink: 0,
     border: 'none',
   },
-  serveText: { color: colors.foam, fontWeight: 800, fontSize: 14 },
-  deleteBtn: { backgroundColor: 'transparent', border: 'none', cursor: 'pointer' },
+  btnText: { color: colors.foam, fontWeight: 800, fontSize: 13 },
+
+  /* Pending queue cards */
+  card: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.foam,
+    borderRadius: radius.md,
+    border: `1px solid ${colors.line}`,
+    padding: '14px 16px',
+  },
+  cardEmoji: { fontSize: 30, marginRight: 12, flexShrink: 0 },
+  cardTitle: { fontSize: 15, fontWeight: 800, color: colors.espresso },
+  metaRow: { display: 'flex', flexDirection: 'row', alignItems: 'center', marginTop: 3, gap: 6 },
+  miniAvatar: { width: 18, height: 18, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 },
+  cardMeta: { fontSize: 12, color: colors.latte },
+  cardNote: { fontSize: 12, color: colors.bean, marginTop: 4, fontStyle: 'italic' },
+  actions: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 8 },
+  serveBtn: {
+    backgroundColor: colors.leaf,
+    borderRadius: radius.sm,
+    paddingLeft: 14,
+    paddingRight: 14,
+    paddingTop: 9,
+    paddingBottom: 9,
+    cursor: 'pointer',
+    border: 'none',
+  },
+  serveBtnText: { color: colors.foam, fontWeight: 800, fontSize: 13 },
+  deleteBtn: { backgroundColor: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 0' },
   deleteText: { color: colors.berry, fontSize: 12, fontWeight: 600 },
-  servedCheck: { fontSize: 22, color: colors.leaf, fontWeight: 800, flexShrink: 0 },
+
+  /* Served cards */
+  servedCard: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.foam,
+    borderRadius: radius.md,
+    border: `1px solid ${colors.line}`,
+    padding: '12px 16px',
+    opacity: 0.8,
+  },
+  servedTitle: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: colors.latte,
+    textDecoration: 'line-through',
+  },
+  servedCheck: { fontSize: 20, color: colors.leaf, fontWeight: 800, flexShrink: 0, marginLeft: 8 },
+
+  /* Clear served row */
+  clearRow: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingLeft: 2,
+    paddingRight: 2,
+  },
+  servedCount: { fontSize: 13, color: colors.latte, fontWeight: 600 },
+  clearBtn: {
+    backgroundColor: '#FEE8E7',
+    border: `1px solid ${colors.berry}`,
+    borderRadius: radius.sm,
+    paddingLeft: 14,
+    paddingRight: 14,
+    paddingTop: 7,
+    paddingBottom: 7,
+    cursor: 'pointer',
+  },
+  clearText: { color: colors.berry, fontWeight: 700, fontSize: 13 },
+
+  /* Empty states */
   empty: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    marginTop: 60,
+    marginTop: 56,
+    paddingBottom: 24,
   },
-  emptyEmoji: { fontSize: 44, marginBottom: 8 },
-  emptyText: { color: colors.latte, fontSize: 15, textAlign: 'center' },
-  clearBtn: {
-    position: 'fixed',
-    bottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)',
-    left: 20,
-    right: 20,
-    backgroundColor: colors.berry,
-    borderRadius: radius.md,
-    padding: 15,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    border: 'none',
-  },
-  clearText: { color: colors.foam, fontWeight: 800 },
+  emptyEmoji: { fontSize: 48, marginBottom: 12 },
+  emptyTitle: { fontSize: 17, fontWeight: 800, color: colors.espresso, marginBottom: 6 },
+  emptyText: { color: colors.latte, fontSize: 14, textAlign: 'center' },
 };
