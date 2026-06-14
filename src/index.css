@@ -51,6 +51,12 @@ p, h1, h2, h3 {
   to { transform: rotate(360deg); }
 }
 
+/* Form input focus ring */
+.brew-input:focus {
+  border-color: #1b87e6 !important;
+  box-shadow: 0 0 0 3px rgba(27,135,230,0.15);
+}
+
 /* RoleSelect card hover — desktop only */
 @media (hover: hover) {
   .role-card {
