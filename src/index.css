@@ -145,6 +145,32 @@ p, h1, h2, h3 {
   box-shadow: 0 0 0 3px rgba(27,135,230,0.15);
 }
 
+/* Admin employee grid — 1-col mobile, 2-col desktop */
+.admin-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+@media (min-width: 600px) {
+  .admin-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+}
+
+/* Admin action button hover */
+@media (hover: hover) {
+  .admin-action-btn {
+    transition: opacity 0.12s ease;
+  }
+  .admin-action-btn:hover { opacity: 0.82; }
+  .admin-remove-btn {
+    transition: background-color 0.12s ease;
+  }
+  .admin-remove-btn:hover { background-color: #FFF0EF !important; }
+}
+
 /* RoleSelect card hover — desktop only */
 @media (hover: hover) {
   .role-card {
